@@ -59,7 +59,8 @@ int main() {
     const double k_cond = 0.028;      // Thermal conductivity W/(m K)
 
     // Fields
-    std::vector<double> u(Nx, 0.0), p(Nx, 50000.0), T(Nx, 380.0), rho(Nx, 0.5);
+    std::vector<double> u(Nx, 0.01), p(Nx, 50000.0), T(Nx, 380.0), rho(Nx, 0.5);
+    std::vector<double> T_old(Nx, 380.0);
     std::vector<double> p_prime(Nx, 0.0);
 
     // Boundary conditions (Dirichlet p at outlet, T at both ends, u inlet)
@@ -104,7 +105,7 @@ int main() {
             std::vector<double> aU(Nx, 0.0), bU(Nx, 2 * 4.0 / 3.0 * mu / dx + dx / dt * rho[0]), cU(Nx, 0.0), dU(Nx, 0.0);
 
             // #pragma omp parallel
-            for (int i = 2; i < Nx - 1; i++) {
+            for (int i = 2; i < Nx - 2; i++) {
 
                 const double D = 4.0 / 3.0 * mu / dx;
 
@@ -260,10 +261,10 @@ int main() {
                     double F_W = rhoW * u_left_face;
                     double F_E = rhoE * u_right_face;
 
-                    aU[i] = -D_W;
-                    cU[i] = -D_E;
-                    bU[i] = D_E + D_W + rho[i] / p[i] * dx / dt;
-                    dU[i] = F_E - F_W + Sm[i] * dx;
+                    aP[i] = -D_W;
+                    cP[i] = -D_E;
+                    bP[i] = D_E + D_W + rho[i] / p[i] * dx / dt;
+                    dP[i] = F_E - F_W + Sm[i] * dx;
 
                     printf("");
                 }
@@ -291,10 +292,10 @@ int main() {
                 double F_W_second = rhoW_second * u_left_face_second;
                 double F_E_second = rhoE_second * u_right_face_second;
 
-                aU[1] = -D_W_second;
-                cU[1] = -D_E_second;
-                bU[1] = D_E_second + D_W_second + rho[1] / p[1] * dx / dt;
-                dU[1] = F_E_second - F_W_second + Sm[1] * dx;
+                aP[1] = -D_W_second;
+                cP[1] = -D_E_second;
+                bP[1] = D_E_second + D_W_second + rho[1] / p[1] * dx / dt;
+                dP[1] = F_E_second - F_W_second + Sm[1] * dx;
 
                 // Second-to-last node
                 double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 3 * p[Nx - 2] - p[Nx - 1]);
@@ -312,10 +313,10 @@ int main() {
                 double F_W_second_to_last = rhoW_second_to_last * u_left_face_second_to_last;
                 double F_E_second_to_last = rhoE_second_to_last * u_right_face_second_to_last;
 
-                aU[Nx - 2] = -D_W_second_to_last;
-                cU[Nx - 2] = -D_E_second_to_last;
-                bU[Nx - 2] = D_E_second_to_last + D_W_second_to_last + rho[Nx - 2] / p[Nx - 2] * dx / dt;
-                dU[Nx - 2] = F_E_second_to_last - F_W_second_to_last + Sm[Nx - 2] * dx;
+                aP[Nx - 2] = -D_W_second_to_last;
+                cP[Nx - 2] = -D_E_second_to_last;
+                bP[Nx - 2] = D_E_second_to_last + D_W_second_to_last + rho[Nx - 2] / p[Nx - 2] * dx / dt;
+                dP[Nx - 2] = F_E_second_to_last - F_W_second_to_last + Sm[Nx - 2] * dx;
 
                 p_prime = solveTridiagonal(aP, bP, cP, dP);
 
