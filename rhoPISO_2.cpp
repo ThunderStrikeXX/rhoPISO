@@ -59,7 +59,7 @@ int main() {
     const double k_cond = 0.028;      // Thermal conductivity W/(m K)
 
     // Fields
-    std::vector<double> u(Nx + 1, 0.0), p(Nx, 50000.0), T(Nx, 380.0), rho(Nx, 0.0);
+    std::vector<double> u(Nx, 0.0), p(Nx, 50000.0), T(Nx, 380.0), rho(Nx, 0.5);
     std::vector<double> p_prime(Nx, 0.0);
 
     // Boundary conditions (Dirichlet p at outlet, T at both ends, u inlet)
@@ -70,7 +70,7 @@ int main() {
     const double T_outlet = 350.0;   // Outlet temperature [K] (condenser)
 
     auto eos_update = [&](std::vector<double>& rho_, const std::vector<double>& p_, const std::vector<double>& T_) {
-    #pragma omp parallel
+    // #pragma omp parallel
         for (int i = 0; i < Nx; i++) {
             double Ti = std::max(200.0, T_[i]);
             rho_[i] = std::max(1e-6, p_[i] / (Rv * Ti));
@@ -100,126 +100,170 @@ int main() {
 
         while (iter<tot_iter && maxErr>tol) {
 
-            // Momentum predictor
-            // Backward Euler in time, central diffusion, pressure gradient explicit
-            std::vector<double> a(Nx, 0.0), b(Nx, 2 * 4.0 / 3.0 * mu / dx), c(Nx, 0.0), d(Nx, 0.0);
+            // Momentum predictort
+            std::vector<double> aU(Nx, 0.0), bU(Nx, 2 * 4.0 / 3.0 * mu / dx + dx / dt * rho[0]), cU(Nx, 0.0), dU(Nx, 0.0);
 
-            #pragma omp parallel
-            for (int i = 1; i < Nx; i++) {
+            // #pragma omp parallel
+            for (int i = 2; i < Nx - 1; i++) {
 
+                const double D = 4.0 / 3.0 * mu / dx;
 
+                double rhie_chow_left = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
+                double rhie_chow_right = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+
+                double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_left;
+                double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_right;
+
+                if (u_left_face >= 0 && u_right_face >= 0) {
+
+                    aU[i] = -u_left_face * rho[i - 1] - D;
+                    cU[i] = -D;
+                    bU[i] = u_right_face * rho[i] + rho[i] * dx / dt + 2 * D;
+                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dx / dt + Su[i] * dx;
+
+                }
+                else if (u_left_face >= 0 && u_right_face < 0) {
+
+                    aU[i] = -u_left_face * rho[i - 1] - D;
+                    cU[i] = u_right_face * rho[i + 1] - D;
+                    bU[i] = rho[i] * dx / dt + 2 * D;
+                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dx / dt + Su[i] * dx;
+
+                }
+                else if (u_left_face < 0 && u_right_face >= 0) {
+
+                    aU[i] = -D;
+                    cU[i] = -D;
+                    bU[i] = (u_right_face - u_left_face) * rho[i] + rho[i] * dx / dt + 2 * D;
+                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dx / dt + Su[i] * dx;
+
+                }
+                else if (u_left_face < 0 && u_right_face < 0) {
+
+                    aU[i] = -D;
+                    cU[i] = u_right_face * rho[i + 1] - D;
+                    bU[i] = -u_left_face * rho[i] + rho[i] * dx / dt + 2 * D;
+                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dx / dt + Su[i] * dx;
+
+                }
 
                 printf("");
             }
 
             // Velocity BC: Dirichlet at left, zero-gradient at right
-            b[0] = 1.0; c[0] = 0.0; d[0] = u_inlet;
-            a[Nx - 1] = 0.0; b[Nx - 1] = 1.0; d[Nx - 1] = u_outlet;
+            bU[0] = 1.0; cU[0] = 0.0; dU[0] = u_inlet;
+            aU[Nx - 1] = 0.0; bU[Nx - 1] = 1.0; dU[Nx - 1] = u_outlet;
 
             const double D = 4.0 / 3.0 * mu / dx;
 
             // Second node
-            double rhie_chow_left = 1.0 / (b[0] + b[1]) / dx * (-2 * p[0] + 3 * p[1] - p[2]);
-            double rhie_chow_right = 1.0 / (b[2] + b[1]) / dx * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
+            double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (4 * dx) * (-2 * p[0] + 3 * p[1] - p[2]);
+            double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (4 * dx) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
 
-            double u_left_face = 0.5 * (u[0] + u[1]) + rhie_chow_left;
-            double u_right_face = 0.5 * (u[1] + u[2]) + rhie_chow_right;
+            double u_left_face_second = 0.5 * (u[0] + u[1]) + rhie_chow_left_second;
+            double u_right_face_second = 0.5 * (u[1] + u[2]) + rhie_chow_right_second;
 
-            if (u_left_face >= 0 && u_right_face >= 0) {
+            if (u_left_face_second >= 0 && u_right_face_second >= 0) {
 
-                a[1] = -u_left_face * rho[0] - D;
-                c[1] = -D;
-                b[1] = u_right_face * rho[1] + rho[1] * dx / dt + 2 * D;
-                d[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Sm[1] * dx;
-
-            }
-            else if (u_left_face >= 0 && u_right_face < 0) {
-
-                a[1] = -u_left_face * rho[0] - D;
-                c[1] = u_right_face * rho[2] - D;
-                b[1] = rho[1] * dx / dt + 2 * D;
-                d[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Sm[1] * dx;
+                aU[1] = -u_left_face_second * rho[0] - D;
+                cU[1] = -D;
+                bU[1] = u_right_face_second * rho[1] + rho[1] * dx / dt + 2 * D;
+                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Su[1] * dx;
 
             }
-            else if (u_left_face < 0 && u_right_face >= 0) {
+            else if (u_left_face_second >= 0 && u_right_face_second < 0) {
 
-                a[1] = -D;
-                c[1] = -D;
-                b[1] = (u_right_face - u_left_face) * rho[1] + rho[1] * dx / dt + 2 * D;
-                d[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Sm[1] * dx;
+                aU[1] = -u_left_face_second * rho[0] - D;
+                cU[1] = u_right_face_second * rho[2] - D;
+                bU[1] = rho[1] * dx / dt + 2 * D;
+                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Su[1] * dx;
 
             }
-            else if (u_left_face < 0 && u_right_face < 0) {
+            else if (u_left_face_second < 0 && u_right_face_second >= 0) {
 
-                a[1] = -D;
-                c[1] = u_right_face * rho[2] - D;
-                b[1] = -u_left_face * rho[1] + rho[1] * dx / dt + 2 * D;
-                d[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Sm[1] * dx;
+                aU[1] = -D;
+                cU[1] = -D;
+                bU[1] = (u_right_face_second - u_left_face_second) * rho[1] + rho[1] * dx / dt + 2 * D;
+                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Su[1] * dx;
+
+            }
+            else if (u_left_face_second < 0 && u_right_face_second < 0) {
+
+                aU[1] = -D;
+                cU[1] = u_right_face_second * rho[2] - D;
+                bU[1] = -u_left_face_second * rho[1] + rho[1] * dx / dt + 2 * D;
+                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dx / dt + Su[1] * dx;
 
             }
 
             // Second-to-last node
-            rhie_chow_left = 1.0 / (b[Nx - 3] + b[Nx - 2]) / dx * (p[Nx - 4] - 3 * p[Nx - 3] + 2 * p_outlet);
-            rhie_chow_right = 1.0 / (b[Nx - 1] + b[Nx - 2]) / dx * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p_outlet);
+            double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 2 * p_outlet);
+            double rhie_chow_right_second_to_last = -(1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p_outlet);
 
-            u_left_face = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_left;
-            u_right_face = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_right;
+            double u_left_face_second_to_last = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_left_second_to_last;
+            double u_right_face_second_to_last = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_right_second_to_last;
 
-            if (u_left_face >= 0 && u_right_face >= 0) {
+            if (u_left_face_second_to_last >= 0 && u_right_face_second_to_last >= 0) {
 
-                a[Nx - 2] = -u_left_face * rho[Nx - 2] - D;
-                c[Nx - 2] = -D;
-                b[Nx - 2] = u_right_face * rho[Nx - 2] + rho[Nx - 2] * dx / dt + 2 * D;
-                d[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Sm[Nx - 2] * dx;
-
-            }
-            else if (u_left_face >= 0 && u_right_face < 0) {
-
-                a[Nx - 2] = -u_left_face * rho[Nx - 3] - D;
-                c[Nx - 2] = u_right_face * rho[Nx - 1] - D;
-                b[Nx - 2] = rho[Nx - 2] * dx / dt + 2 * D;
-                d[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Sm[Nx - 2] * dx;
+                aU[Nx - 2] = -u_left_face_second_to_last * rho[Nx - 3] - D;
+                cU[Nx - 2] = -D;
+                bU[Nx - 2] = u_right_face_second_to_last * rho[Nx - 2] + rho[Nx - 2] * dx / dt + 2 * D;
+                dU[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Su[Nx - 2] * dx;
 
             }
-            else if (u_left_face < 0 && u_right_face >= 0) {
+            else if (u_left_face_second_to_last >= 0 && u_right_face_second_to_last < 0) {
 
-                a[Nx - 2] = -D;
-                c[Nx - 2] = -D;
-                b[Nx - 2] = (u_right_face - u_left_face) * rho[Nx - 2] + rho[Nx - 2] * dx / dt + 2 * D;
-                d[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Sm[Nx - 2] * dx;
-
-            }
-            else if (u_left_face < 0 && u_right_face < 0) {
-
-                a[Nx - 2] = -D;
-                c[Nx - 2] = u_right_face * rho[Nx - 1] - D;
-                b[Nx - 2] = -u_left_face * rho[Nx - 2] + rho[Nx - 2] * dx / dt + 2 * D;
-                d[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Sm[Nx - 2] * dx;
+                aU[Nx - 2] = -u_left_face_second_to_last * rho[Nx - 3] - D;
+                cU[Nx - 2] = u_right_face_second_to_last * rho[Nx - 1] - D;
+                bU[Nx - 2] = rho[Nx - 2] * dx / dt + 2 * D;
+                dU[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Su[Nx - 2] * dx;
 
             }
+            else if (u_left_face_second_to_last < 0 && u_right_face_second_to_last >= 0) {
 
-            u = solveTridiagonal(a, b, c, d);
+                aU[Nx - 2] = -D;
+                cU[Nx - 2] = -D;
+                bU[Nx - 2] = (u_right_face_second_to_last - u_left_face_second_to_last) * rho[Nx - 2] + rho[Nx - 2] * dx / dt + 2 * D;
+                dU[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Su[Nx - 2] * dx;
+
+            }
+            else if (u_left_face_second_to_last < 0 && u_right_face_second_to_last < 0) {
+
+                aU[Nx - 2] = -D;
+                cU[Nx - 2] = u_right_face_second_to_last * rho[Nx - 1] - D;
+                bU[Nx - 2] = -u_left_face_second_to_last * rho[Nx - 2] + rho[Nx - 2] * dx / dt + 2 * D;
+                dU[Nx - 2] = -0.5 * (p[Nx - 1] - p[Nx - 3]) + rho[Nx - 2] * u[Nx - 2] * dx / dt + Su[Nx - 2] * dx;
+
+            }
+
+            u = solveTridiagonal(aU, bU, cU, dU);
 
             for (int piso = 0; piso < corr_iter; piso++) {
 
                 std::vector<double> aP(Nx, 0.0), bP(Nx, 0.0), cP(Nx, 0.0), dP(Nx, 0.0);
 
-#pragma omp parallel
+                // // #pragma omp parallel
                 for (int i = 2; i < Nx - 2; i++) {
 
-                    const double source = Sm[i] * dx;
-                    const double time_term = dx / dt;
+                    double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
+                    double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
 
-                    const double rhie_chow_left = 1.0 / (b[i - 1] + b[i]) / dx * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
-                    const double rhie_chow_right = 1.0 / (b[i + 1] + b[i]) / dx * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+                    double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_left;
+                    double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_right;
 
-                    const double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_left;
-                    const double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_right;
+                    double rhoW = (u_left_face >= 0) ? rho[i - 1] : rho[i];
+                    double rhoE = (u_right_face >= 0) ? rho[i] : rho[i + 1];
 
-                    aP[i] = -std::max(u_left_face, 0.0);
-                    cP[i] = -std::max(-u_right_face, 0.0);
-                    bP[i] = time_term + std::max(-u_left_face, 0.0) + std::max(u_right_face, 0.0);
-                    dP[i] = time_term * rho[i] + source;
+                    double D_W = 0.5 * rhoW * (1.0 / bU[i - 1] + 1.0 / bU[i]) / dx;
+                    double D_E = 0.5 * rhoE * (1.0 / bU[i + 1] + 1.0 / bU[i]) / dx;
+
+                    double F_W = rhoW * u_left_face;
+                    double F_E = rhoE * u_right_face;
+
+                    aU[i] = -D_W;
+                    cU[i] = -D_E;
+                    bU[i] = D_E + D_W + rho[i] / p[i] * dx / dt;
+                    dU[i] = F_E - F_W + Sm[i] * dx;
 
                     printf("");
                 }
@@ -232,34 +276,46 @@ int main() {
                 bP[Nx - 1] = 1.0; aP[Nx - 1] = 0.0; dP[Nx - 1] = 0.0;
 
                 // Second node
-                double source = Sm[1] * dx;
-                double time_term = dx / dt;
+                double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (4 * dx) * (- 2 * p[0] + 3 * p[1] - p[2]);
+                double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (4 * dx) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
 
-                double rhie_chow_left = 1.0 / (b[0] + b[1]) / dx * (-2 * p[0] + 3 * p[1] - p[2]);
-                double rhie_chow_right = 1.0 / (b[2] + b[1]) / dx * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
+                double u_left_face = 0.5 * (u[0] + u[1]) + rhie_chow_left_second;
+                double u_right_face = 0.5 * (u[1] + u[2]) + rhie_chow_right_second;
 
-                double u_left_face = 0.5 * (u[0] + u[1]) + rhie_chow_left;
-                double u_right_face = 0.5 * (u[1] + u[2]) + rhie_chow_right;
+                double rhoW_second = (u_left_face_second >= 0) ? rho[0] : rho[1];
+                double rhoE_second = (u_right_face_second >= 0) ? rho[1] : rho[2];
 
-                aP[1] = -std::max(u_left_face, 0.0);
-                cP[1] = -std::max(-u_right_face, 0.0);
-                bP[1] = time_term + std::max(-u_left_face, 0.0) + std::max(u_right_face, 0.0);
-                dP[1] = time_term * rho[1] + source;
+                double D_W_second = 0.5 * rhoW_second * (1.0 / bU[0] + 1.0 / bU[1]) / dx;
+                double D_E_second = 0.5 * rhoE_second * (1.0 / bU[2] + 1.0 / bU[1]) / dx;
+
+                double F_W_second = rhoW_second * u_left_face_second;
+                double F_E_second = rhoE_second * u_right_face_second;
+
+                aU[1] = -D_W_second;
+                cU[1] = -D_E_second;
+                bU[1] = D_E_second + D_W_second + rho[1] / p[1] * dx / dt;
+                dU[1] = F_E_second - F_W_second + Sm[1] * dx;
 
                 // Second-to-last node
-                source = Sm[Nx - 2] * dx;
-                time_term = dx / dt;
+                double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 3 * p[Nx - 2] - p[Nx - 1]);
+                double rhie_chow_right_second_to_last = -(1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p[Nx - 1]);
 
-                rhie_chow_left = 1.0 / (b[Nx - 3] + b[Nx - 2]) / dx * (p[Nx - 4] - 3 * p[Nx - 3] + 3 * p[Nx - 2] - p[Nx - 1]);
-                rhie_chow_right = 1.0 / (b[Nx - 1] + b[Nx - 2]) / dx * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p_outlet);
+                double u_left_face_second_to_last = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_left_second_to_last;
+                double u_right_face_second_to_last = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_right_second_to_last;
 
-                u_left_face = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_left;
-                u_right_face = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_right;
+                double rhoW_second_to_last = (u_left_face_second_to_last >= 0) ? rho[Nx - 3] : rho[Nx - 2];
+                double rhoE_second_to_last = (u_right_face_second_to_last >= 0) ? rho[Nx - 2] : rho[Nx - 1];
 
-                aP[Nx - 2] = -std::max(u_left_face, 0.0);
-                cP[Nx - 2] = -std::max(-u_right_face, 0.0);
-                bP[Nx - 2] = time_term + std::max(-u_left_face, 0.0) + std::max(u_right_face, 0.0);
-                dP[Nx - 2] = time_term * rho[Nx - 2] + source;
+                double D_W_second_to_last = 0.5 * rhoW_second_to_last * (1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / dx;
+                double D_E_second_to_last = 0.5 * rhoE_second_to_last * (1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / dx;
+
+                double F_W_second_to_last = rhoW_second_to_last * u_left_face_second_to_last;
+                double F_E_second_to_last = rhoE_second_to_last * u_right_face_second_to_last;
+
+                aU[Nx - 2] = -D_W_second_to_last;
+                cU[Nx - 2] = -D_E_second_to_last;
+                bU[Nx - 2] = D_E_second_to_last + D_W_second_to_last + rho[Nx - 2] / p[Nx - 2] * dx / dt;
+                dU[Nx - 2] = F_E_second_to_last - F_W_second_to_last + Sm[Nx - 2] * dx;
 
                 p_prime = solveTridiagonal(aP, bP, cP, dP);
 
@@ -269,7 +325,7 @@ int main() {
                 maxErr = 0.0;
                 for (int i = 1; i < Nx - 1; i++) {
                     double u_prev = u[i];
-                    u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dx * b[i]);
+                    u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dx * bU[i]);
                     maxErr = std::max(maxErr, std::fabs(u[i] - u_prev));
                 }
 
@@ -349,7 +405,7 @@ int main() {
         // Energy equation for T (implicit), upwind convection, central diffusion
         std::vector<double> aT(Nx, 0.0), bT(Nx, 0.0), cT(Nx, 0.0), dT(Nx, 0.0);
 
-#pragma omp parallel
+        // #pragma omp parallel
         for (int i = 1; i < Nx - 1; i++) {
             double rhoCp = rho[i] * cp;
             double Pr_t = 0.9;
