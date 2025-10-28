@@ -60,7 +60,7 @@ int main() {
 
     // Fields
     std::vector<double> u(Nx, 0.01), p(Nx, 50000.0), T(Nx, 380.0), rho(Nx, 0.5);
-    std::vector<double> T_old(Nx, 380.0);
+    std::vector<double> T_old(Nx, 380.0), rho_old(Nx, 0.5);
     std::vector<double> p_prime(Nx, 0.0);
 
     // Boundary conditions (Dirichlet p at outlet, T at both ends, u inlet)
@@ -80,18 +80,25 @@ int main() {
 
     // Mass source
     std::vector<double> Sm(Nx, 0.0);
-    Sm[1] = 1000.0; // mass source term at cell 1
-    Sm[2] = 1000.0; // mass source term at cell 1
-    Sm[7] = -1000.0; // mass sink term at cell 8
-    Sm[8] = -1000.0; // mass sink term at cell 8
+    Sm[1] = 10.0; // mass source term at cell 1
+    Sm[2] = 10.0; // mass source term at cell 1
+    Sm[7] = -10.0; // mass sink term at cell 8
+    Sm[8] = -10.0; // mass sink term at cell 8
 
     // Momentum source
     std::vector<double> Su(Nx, 0.0);
+
+    const double D = 4.0 / 3.0 * mu / dx;
+
+    const double rhie_chow_on_off = 0;
 
     // Output
     std::ofstream fout("solution_vapor_PISO_thermal.txt");
 
     for (double it = 0; it < t_iter; it++) {
+
+        T_old = T;
+        rho_old = rho;
 
         printf("Time: %f / %f, Courant number: %f \n", dt * it, t_max, u_inlet * dt / dx);
 
@@ -109,11 +116,11 @@ int main() {
 
                 const double D = 4.0 / 3.0 * mu / dx;
 
-                double rhie_chow_left = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
-                double rhie_chow_right = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+                double rhie_chow_left = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dx) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
+                double rhie_chow_right = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dx) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
 
-                double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_left;
-                double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_right;
+                double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
+                double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
 
                 if (u_left_face >= 0 && u_right_face >= 0) {
 
@@ -152,17 +159,15 @@ int main() {
             }
 
             // Velocity BC: Dirichlet at left, zero-gradient at right
-            bU[0] = 1.0; cU[0] = 0.0; dU[0] = u_inlet;
-            aU[Nx - 1] = 0.0; bU[Nx - 1] = 1.0; dU[Nx - 1] = u_outlet;
-
-            const double D = 4.0 / 3.0 * mu / dx;
+            bU[0] = rho[0] * dx / dt + 2 * D; cU[0] = 0.0; dU[0] = (rho[0] * dx / dt + 2 * D) * u_inlet;
+            aU[Nx - 1] = 0.0; bU[Nx - 1] = rho[Nx - 1] * dx / dt + 2 * D; dU[Nx - 1] = (rho[Nx - 1] * dx / dt + 2 * D) * u_outlet;
 
             // Second node
-            double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (4 * dx) * (-2 * p[0] + 3 * p[1] - p[2]);
-            double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (4 * dx) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
+            double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (8 * dx) * (-2 * p[0] + 3 * p[1] - p[2]);
+            double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (8 * dx) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
 
-            double u_left_face_second = 0.5 * (u[0] + u[1]) + rhie_chow_left_second;
-            double u_right_face_second = 0.5 * (u[1] + u[2]) + rhie_chow_right_second;
+            double u_left_face_second = 0.5 * (u[0] + u[1]) + rhie_chow_on_off * rhie_chow_left_second;
+            double u_right_face_second = 0.5 * (u[1] + u[2]) + rhie_chow_on_off * rhie_chow_right_second;
 
             if (u_left_face_second >= 0 && u_right_face_second >= 0) {
 
@@ -198,11 +203,11 @@ int main() {
             }
 
             // Second-to-last node
-            double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 2 * p_outlet);
-            double rhie_chow_right_second_to_last = -(1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p_outlet);
+            double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (8 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 2 * p_outlet);
+            double rhie_chow_right_second_to_last = -(1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / (8 * dx) * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p_outlet);
 
-            double u_left_face_second_to_last = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_left_second_to_last;
-            double u_right_face_second_to_last = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_right_second_to_last;
+            double u_left_face_second_to_last = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_on_off * rhie_chow_left_second_to_last;
+            double u_right_face_second_to_last = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_on_off * rhie_chow_right_second_to_last;
 
             if (u_left_face_second_to_last >= 0 && u_right_face_second_to_last >= 0) {
 
@@ -244,27 +249,63 @@ int main() {
                 std::vector<double> aP(Nx, 0.0), bP(Nx, 0.0), cP(Nx, 0.0), dP(Nx, 0.0);
 
                 // // #pragma omp parallel
-                for (int i = 2; i < Nx - 2; i++) {
+                for (int i = 1; i < Nx - 1; i++) {
 
-                    double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
-                    double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (4 * dx) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+                    // --- Coefficienti di diffusione di pressione ---
 
-                    double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_left;
-                    double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_right;
+                    // Faccia Ovest (w, tra i-1 e i)
+                    double rho_w = 0.5 * (rho[i - 1] + rho[i]);
+                    // 1/Ap medio sulla faccia
+                    double d_w_face = 0.5 * (1.0 / bU[i - 1] + 1.0 / bU[i]);
+                    // Coeff. ellittico (nota: dx*dx)
+                    double E_w = rho_w * d_w_face / (dx * dx);
 
-                    double rhoW = (u_left_face >= 0) ? rho[i - 1] : rho[i];
-                    double rhoE = (u_right_face >= 0) ? rho[i] : rho[i + 1];
+                    // Faccia Est (e, tra i e i+1)
+                    double rho_e = 0.5 * (rho[i] + rho[i + 1]);
+                    // 1/Ap medio sulla faccia
+                    double d_e_face = 0.5 * (1.0 / bU[i] + 1.0 / bU[i + 1]);
+                    // Coeff. ellittico
+                    double E_e = rho_e * d_e_face / (dx * dx);
 
-                    double D_W = 0.5 * rhoW * (1.0 / bU[i - 1] + 1.0 / bU[i]) / dx;
-                    double D_E = 0.5 * rhoE * (1.0 / bU[i + 1] + 1.0 / bU[i]) / dx;
+                    // --- Compressibilità (psi = d(rho)/d(p)) ---
+                    // Assumendo gas ideale: rho = p/(RT) -> d(rho)/d(p) = 1/(RT)
+                    double psi_i = 1.0 / (Rv * T[i]); // T è T* (dal passo precedente)
 
-                    double F_W = rhoW * u_left_face;
-                    double F_E = rhoE * u_right_face;
+                    // --- Calcolo sbilancio di massa (RHS) ---
+                    // (Usa una semplice media per u* e upwind per rho*)
+                    double u_w_star = 0.5 * (u[i - 1] + u[i]);
+                    double mdot_w_star = (u_w_star > 0.0) ? rho[i - 1] * u_w_star : rho[i] * u_w_star;
 
-                    aP[i] = -D_W;
-                    cP[i] = -D_E;
-                    bP[i] = D_E + D_W + rho[i] / p[i] * dx / dt;
-                    dP[i] = F_E - F_W + Sm[i] * dx;
+                    double u_e_star = 0.5 * (u[i] + u[i + 1]);
+                    double mdot_e_star = (u_e_star > 0.0) ? rho[i] * u_e_star : rho[i + 1] * u_e_star;
+
+                    double mass_imbalance = (rho[i] - rho_old[i]) / dt + (mdot_e_star - mdot_w_star) / dx;
+
+                    // --- Assembla Matrice P_PRIME ---
+                    aP[i] = -E_w;
+                    cP[i] = -E_e;
+                    bP[i] = E_w + E_e + psi_i / dt;
+                    dP[i] = Sm[i] - mass_imbalance; // S_m - (sbilancio di massa)
+
+                    //double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dx) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
+                    //double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dx) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+
+                    //double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
+                    //double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
+
+                    //double rhoW = (u_left_face >= 0) ? rho[i - 1] : rho[i];
+                    //double rhoE = (u_right_face >= 0) ? rho[i] : rho[i + 1];
+
+                    //double D_W = 0.5 * rhoW * (1.0 / bU[i - 1] + 1.0 / bU[i]) / dx;
+                    //double D_E = 0.5 * rhoE * (1.0 / bU[i + 1] + 1.0 / bU[i]) / dx;
+
+                    //double F_W = rhoW * u_left_face;
+                    //double F_E = rhoE * u_right_face;
+
+                    //aP[i] = -D_W;
+                    //cP[i] = -D_E;
+                    //bP[i] = D_E + D_W + rho[i] / p[i] * dx / dt;
+                    //dP[i] = F_E - F_W + Sm[i] * dx;
 
                     printf("");
                 }
@@ -276,47 +317,51 @@ int main() {
                 // Right: p' = 0 to pin pressure level
                 bP[Nx - 1] = 1.0; aP[Nx - 1] = 0.0; dP[Nx - 1] = 0.0;
 
-                // Second node
-                double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (4 * dx) * (- 2 * p[0] + 3 * p[1] - p[2]);
-                double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (4 * dx) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
+                //// a_P coefficients for first and last node
+                //double bU0 = rho[0] * dx / dt + 2 * D;
+                //double bU_Nx_1 = rho[Nx - 1] * dx / dt + 2 * D;
 
-                double u_left_face = 0.5 * (u[0] + u[1]) + rhie_chow_left_second;
-                double u_right_face = 0.5 * (u[1] + u[2]) + rhie_chow_right_second;
+                //// Second node
+                //double rhie_chow_left_second = -(1.0 / bU0 + 1.0 / bU[1]) / (8 * dx) * (- 2 * p[0] + 3 * p[1] - p[2]);
+                //double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (8 * dx) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
 
-                double rhoW_second = (u_left_face_second >= 0) ? rho[0] : rho[1];
-                double rhoE_second = (u_right_face_second >= 0) ? rho[1] : rho[2];
+                //double u_left_face = 0.5 * (u[0] + u[1]) + rhie_chow_on_off * rhie_chow_left_second;
+                //double u_right_face = 0.5 * (u[1] + u[2]) + rhie_chow_on_off * rhie_chow_right_second;
 
-                double D_W_second = 0.5 * rhoW_second * (1.0 / bU[0] + 1.0 / bU[1]) / dx;
-                double D_E_second = 0.5 * rhoE_second * (1.0 / bU[2] + 1.0 / bU[1]) / dx;
+                //double rhoW_second = (u_left_face_second >= 0) ? rho[0] : rho[1];
+                //double rhoE_second = (u_right_face_second >= 0) ? rho[1] : rho[2];
 
-                double F_W_second = rhoW_second * u_left_face_second;
-                double F_E_second = rhoE_second * u_right_face_second;
+                //double D_W_second = 0.5 * rhoW_second * (1.0 / bU0 + 1.0 / bU[1]) / dx;
+                //double D_E_second = 0.5 * rhoE_second * (1.0 / bU[2] + 1.0 / bU[1]) / dx;
 
-                aP[1] = -D_W_second;
-                cP[1] = -D_E_second;
-                bP[1] = D_E_second + D_W_second + rho[1] / p[1] * dx / dt;
-                dP[1] = F_E_second - F_W_second + Sm[1] * dx;
+                //double F_W_second = rhoW_second * u_left_face_second;
+                //double F_E_second = rhoE_second * u_right_face_second;
 
-                // Second-to-last node
-                double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 3 * p[Nx - 2] - p[Nx - 1]);
-                double rhie_chow_right_second_to_last = -(1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / (4 * dx) * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p[Nx - 1]);
+                //aP[1] = -D_W_second;
+                //cP[1] = -D_E_second;
+                //bP[1] = D_E_second + D_W_second + rho[1] / p[1] * dx / dt;
+                //dP[1] = F_E_second - F_W_second + Sm[1] * dx;
 
-                double u_left_face_second_to_last = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_left_second_to_last;
-                double u_right_face_second_to_last = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_right_second_to_last;
+                //// Second-to-last node
+                //double rhie_chow_left_second_to_last = -(1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / (8 * dx) * (p[Nx - 4] - 3 * p[Nx - 3] + 3 * p[Nx - 2] - p[Nx - 1]);
+                //double rhie_chow_right_second_to_last = -(1.0 / bU_Nx_1 + 1.0 / bU[Nx - 2]) / (8 * dx) * (p[Nx - 3] - 3 * p[Nx - 2] + 2 * p[Nx - 1]);
 
-                double rhoW_second_to_last = (u_left_face_second_to_last >= 0) ? rho[Nx - 3] : rho[Nx - 2];
-                double rhoE_second_to_last = (u_right_face_second_to_last >= 0) ? rho[Nx - 2] : rho[Nx - 1];
+                //double u_left_face_second_to_last = 0.5 * (u[Nx - 3] + u[Nx - 2]) + rhie_chow_on_off * rhie_chow_left_second_to_last;
+                //double u_right_face_second_to_last = 0.5 * (u[Nx - 2] + u[Nx - 1]) + rhie_chow_on_off * rhie_chow_right_second_to_last;
 
-                double D_W_second_to_last = 0.5 * rhoW_second_to_last * (1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / dx;
-                double D_E_second_to_last = 0.5 * rhoE_second_to_last * (1.0 / bU[Nx - 1] + 1.0 / bU[Nx - 2]) / dx;
+                //double rhoW_second_to_last = (u_left_face_second_to_last >= 0) ? rho[Nx - 3] : rho[Nx - 2];
+                //double rhoE_second_to_last = (u_right_face_second_to_last >= 0) ? rho[Nx - 2] : rho[Nx - 1];
 
-                double F_W_second_to_last = rhoW_second_to_last * u_left_face_second_to_last;
-                double F_E_second_to_last = rhoE_second_to_last * u_right_face_second_to_last;
+                //double D_W_second_to_last = 0.5 * rhoW_second_to_last * (1.0 / bU[Nx - 3] + 1.0 / bU[Nx - 2]) / dx;
+                //double D_E_second_to_last = 0.5 * rhoE_second_to_last * (1.0 / bU_Nx_1 + 1.0 / bU[Nx - 2]) / dx;
 
-                aP[Nx - 2] = -D_W_second_to_last;
-                cP[Nx - 2] = -D_E_second_to_last;
-                bP[Nx - 2] = D_E_second_to_last + D_W_second_to_last + rho[Nx - 2] / p[Nx - 2] * dx / dt;
-                dP[Nx - 2] = F_E_second_to_last - F_W_second_to_last + Sm[Nx - 2] * dx;
+                //double F_W_second_to_last = rhoW_second_to_last * u_left_face_second_to_last;
+                //double F_E_second_to_last = rhoE_second_to_last * u_right_face_second_to_last;
+
+                //aP[Nx - 2] = -D_W_second_to_last;
+                //cP[Nx - 2] = -D_E_second_to_last;
+                //bP[Nx - 2] = D_E_second_to_last + D_W_second_to_last + rho[Nx - 2] / p[Nx - 2] * dx / dt;
+                //dP[Nx - 2] = F_E_second_to_last - F_W_second_to_last + Sm[Nx - 2] * dx;
 
                 p_prime = solveTridiagonal(aP, bP, cP, dP);
 
@@ -325,6 +370,7 @@ int main() {
 
                 maxErr = 0.0;
                 for (int i = 1; i < Nx - 1; i++) {
+
                     double u_prev = u[i];
                     u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dx * bU[i]);
                     maxErr = std::max(maxErr, std::fabs(u[i] - u_prev));
