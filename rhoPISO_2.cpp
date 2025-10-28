@@ -77,6 +77,8 @@ int main() {
 
     // Fields
     std::vector<double> u(N, 0.01), p(N, 50000.0), T(N, 380.0), rho(N, 0.5);
+    std::vector<double> p_storage(N + 2, 50000.0);
+    double* p_padded = &p_storage[1];
     std::vector<double> T_old(N, 380.0), rho_old(N, 0.5), p_old(N, 50000.0);
     std::vector<double> p_prime(N, 0.0);
 
@@ -170,10 +172,10 @@ int main() {
             #pragma region momentum_predictor
 
             // #pragma omp parallel
-            for (int i = 2; i < N - 2; i++) {
+            for (int i = 1; i < N - 1; i++) {
 
-                double rhie_chow_left = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
-                double rhie_chow_right = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+                double rhie_chow_left = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+                double rhie_chow_right = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
                 double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
                 double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
@@ -218,89 +220,9 @@ int main() {
             bU[0] = rho[0] * dz / dt + 2 * D; cU[0] = 0.0; dU[0] = (rho[0] * dz / dt + 2 * D) * u_inlet;
             aU[N - 1] = 0.0; bU[N - 1] = rho[N - 1] * dz / dt + 2 * D; dU[N - 1] = (rho[N - 1] * dz / dt + 2 * D) * u_outlet;
 
-            // Second node
-            double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (8 * dz) * (-2 * p[0] + 3 * p[1] - p[2]);
-            double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (8 * dz) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
-
-            double u_left_face_second = 0.5 * (u[0] + u[1]) + rhie_chow_on_off * rhie_chow_left_second;
-            double u_right_face_second = 0.5 * (u[1] + u[2]) + rhie_chow_on_off * rhie_chow_right_second;
-
-            if (u_left_face_second >= 0 && u_right_face_second >= 0) {
-
-                aU[1] = -u_left_face_second * rho[0] - D;
-                cU[1] = -D;
-                bU[1] = u_right_face_second * rho[1] + rho[1] * dz / dt + 2 * D;
-                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dz / dt + Su[1] * dz;
-
-            }
-            else if (u_left_face_second >= 0 && u_right_face_second < 0) {
-
-                aU[1] = -u_left_face_second * rho[0] - D;
-                cU[1] = u_right_face_second * rho[2] - D;
-                bU[1] = rho[1] * dz / dt + 2 * D;
-                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dz / dt + Su[1] * dz;
-
-            }
-            else if (u_left_face_second < 0 && u_right_face_second >= 0) {
-
-                aU[1] = -D;
-                cU[1] = -D;
-                bU[1] = (u_right_face_second - u_left_face_second) * rho[1] + rho[1] * dz / dt + 2 * D;
-                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dz / dt + Su[1] * dz;
-
-            }
-            else if (u_left_face_second < 0 && u_right_face_second < 0) {
-
-                aU[1] = -D;
-                cU[1] = u_right_face_second * rho[2] - D;
-                bU[1] = -u_left_face_second * rho[1] + rho[1] * dz / dt + 2 * D;
-                dU[1] = -0.5 * (p[2] - p[0]) + rho[1] * u[1] * dz / dt + Su[1] * dz;
-
-            }
-
-            // Second-to-last node
-            double rhie_chow_left_second_to_last = -(1.0 / bU[N - 3] + 1.0 / bU[N - 2]) / (8 * dz) * (p[N - 4] - 3 * p[N - 3] + 2 * p_outlet);
-            double rhie_chow_right_second_to_last = -(1.0 / bU[N - 1] + 1.0 / bU[N - 2]) / (8 * dz) * (p[N - 3] - 3 * p[N - 2] + 2 * p_outlet);
-
-            double u_left_face_second_to_last = 0.5 * (u[N - 3] + u[N - 2]) + rhie_chow_on_off * rhie_chow_left_second_to_last;
-            double u_right_face_second_to_last = 0.5 * (u[N - 2] + u[N - 1]) + rhie_chow_on_off * rhie_chow_right_second_to_last;
-
-            if (u_left_face_second_to_last >= 0 && u_right_face_second_to_last >= 0) {
-
-                aU[N - 2] = -u_left_face_second_to_last * rho[N - 3] - D;
-                cU[N - 2] = -D;
-                bU[N - 2] = u_right_face_second_to_last * rho[N - 2] + rho[N - 2] * dz / dt + 2 * D;
-                dU[N - 2] = -0.5 * (p[N - 1] - p[N - 3]) + rho[N - 2] * u[N - 2] * dz / dt + Su[N - 2] * dz;
-
-            }
-            else if (u_left_face_second_to_last >= 0 && u_right_face_second_to_last < 0) {
-
-                aU[N - 2] = -u_left_face_second_to_last * rho[N - 3] - D;
-                cU[N - 2] = u_right_face_second_to_last * rho[N - 1] - D;
-                bU[N - 2] = rho[N - 2] * dz / dt + 2 * D;
-                dU[N - 2] = -0.5 * (p[N - 1] - p[N - 3]) + rho[N - 2] * u[N - 2] * dz / dt + Su[N - 2] * dz;
-
-            }
-            else if (u_left_face_second_to_last < 0 && u_right_face_second_to_last >= 0) {
-
-                aU[N - 2] = -D;
-                cU[N - 2] = -D;
-                bU[N - 2] = (u_right_face_second_to_last - u_left_face_second_to_last) * rho[N - 2] + rho[N - 2] * dz / dt + 2 * D;
-                dU[N - 2] = -0.5 * (p[N - 1] - p[N - 3]) + rho[N - 2] * u[N - 2] * dz / dt + Su[N - 2] * dz;
-
-            }
-            else if (u_left_face_second_to_last < 0 && u_right_face_second_to_last < 0) {
-
-                aU[N - 2] = -D;
-                cU[N - 2] = u_right_face_second_to_last * rho[N - 1] - D;
-                bU[N - 2] = -u_left_face_second_to_last * rho[N - 2] + rho[N - 2] * dz / dt + 2 * D;
-                dU[N - 2] = -0.5 * (p[N - 1] - p[N - 3]) + rho[N - 2] * u[N - 2] * dz / dt + Su[N - 2] * dz;
-
-            }
+            u = solveTridiagonal(aU, bU, cU, dU);
 
             #pragma endregion
-
-            u = solveTridiagonal(aU, bU, cU, dU);
 
             for (int piso = 0; piso < corr_iter; piso++) {
 
@@ -315,10 +237,10 @@ int main() {
                 std::vector<double> aP(N, 0.0), bP(N, 0.0), cP(N, 0.0), dP(N, 0.0);
 
                 // // #pragma omp parallel
-                for (int i = 2; i < N - 2; i++) {
+                for (int i = 1; i < N - 1; i++) {
 
-                    double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
-                    double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+                    double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+                    double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
                     double rho_w = 0.5 * (rho[i - 1] + rho[i]);
                     double d_w_face = 0.5 * (1.0 / bU[i - 1] + 1.0 / bU[i]); // 1/Ap average on west face
@@ -350,63 +272,9 @@ int main() {
                 bP[0] = 1.0; cP[0] = -1.0; dP[0] = 0.0;
                 bP[N - 1] = 1.0; aP[N - 1] = 0.0; dP[N - 1] = 0.0;
 
-                // Second node
-                double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (8 * dz) * (- 2 * p[0] + 3 * p[1] - p[2]);
-                double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (8 * dz) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
-
-                double rho_w_second = 0.5 * (rho[0] + rho[1]);
-                double d_w_face_second = 0.5 * (1.0 / bU[0] + 1.0 / bU[1]); // 1/Ap average on west face
-                double E_w_second = rho_w_second * d_w_face_second / (dz * dz);
-
-                double rho_e_second = 0.5 * (rho[1] + rho[2]);
-                double d_e_face_second = 0.5 * (1.0 / bU[1] + 1.0 / bU[2]);  // 1/Ap average on east face
-                double E_e_second = rho_e_second * d_e_face_second / (dz * dz);
-
-                double psi_i_second = 1.0 / (Rv * T[1]); // Compressibility assuming ideal gas
-
-                double u_w_star_second = 0.5 * (u[0] + u[1]) + rhie_chow_on_off * rhie_chow_left_second;
-                double mdot_w_star_second = (u_w_star_second > 0.0) ? rho[0] * u_w_star_second : rho[1] * u_w_star_second;
-
-                double u_e_star_second = 0.5 * (u[1] + u[2]) + rhie_chow_on_off * rhie_chow_right_second;
-                double mdot_e_star_second = (u_e_star_second > 0.0) ? rho[1] * u_e_star_second : rho[2] * u_e_star_second;
-
-                double mass_imbalance_second = (rho[1] - rho_old[1]) / dt + (mdot_e_star_second - mdot_w_star_second) / dz;
-
-                aP[1] = -E_w_second;
-                cP[1] = -E_e_second;
-                bP[1] = E_w_second + E_e_second + psi_i_second / dt;
-                dP[1] = Sm[1] - mass_imbalance_second;
-
-                // Second-to-last node
-                double rhie_chow_left_second_to_last = -(1.0 / bU[N - 3] + 1.0 / bU[N - 2]) / (8 * dz) * (p[N - 4] - 3 * p[N - 3] + 3 * p[N - 2] - p[N - 1]);
-                double rhie_chow_right_second_to_last = -(1.0 / bU[N - 1] + 1.0 / bU[N - 2]) / (8 * dz) * (p[N - 3] - 3 * p[N - 2] + 2 * p[N - 1]);
-
-                double rho_w_second_to_last = 0.5 * (rho[N - 3] + rho[N - 2]);
-                double d_w_face_second_to_last = 0.5 * (1.0 / bU[N - 3] + 1.0 / bU[N - 2]); // 1/Ap average on west face
-                double E_w_second_to_last = rho_w_second_to_last * d_w_face_second_to_last / (dz * dz);
-
-                double rho_e_second_to_last = 0.5 * (rho[N - 2] + rho[N - 1]);
-                double d_e_face_second_to_last = 0.5 * (1.0 / bU[N - 2] + 1.0 / bU[N - 1]);  // 1/Ap average on east face
-                double E_e_second_to_last = rho_e_second_to_last * d_e_face_second_to_last / (dz * dz);
-
-                double psi_i_second_to_last = 1.0 / (Rv * T[N - 2]); // Compressibility assuming ideal gas
-
-                double u_w_star_second_to_last = 0.5 * (u[N - 3] + u[N - 2]) + rhie_chow_on_off * rhie_chow_left_second_to_last;
-                double mdot_w_star_second_to_last = (u_w_star_second_to_last > 0.0) ? rho[N - 3] * u_w_star_second_to_last : rho[N - 2] * u_w_star_second_to_last;
-
-                double u_e_star_second_to_last = 0.5 * (u[N - 2] + u[N - 1]) + rhie_chow_on_off * rhie_chow_right_second_to_last;
-                double mdot_e_star_second_to_last = (u_e_star_second_to_last > 0.0) ? rho[N - 2] * u_e_star_second_to_last : rho[N - 1] * u_e_star_second_to_last;
-
-                double mass_imbalance_second_to_last = (rho[N - 2] - rho_old[N - 2]) / dt + (mdot_e_star_second_to_last - mdot_w_star_second_to_last) / dz;
-
-                aP[N - 2] = -E_w_second_to_last;
-                cP[N - 2] = -E_e_second_to_last;
-                bP[N - 2] = E_w_second_to_last + E_e_second_to_last + psi_i_second_to_last / dt;
-                dP[N - 2] = Sm[N - 2] - mass_imbalance_second_to_last;
+                p_prime = solveTridiagonal(aP, bP, cP, dP);
 
                 #pragma endregion
-
-                p_prime = solveTridiagonal(aP, bP, cP, dP);
 
                 // =======================================================================
                 //
@@ -414,7 +282,19 @@ int main() {
                 //
                 // =======================================================================
 
-                for (int i = 0; i < N; i++) p[i] += p_prime[i]; // Note that PISO does not require an under-relaxation factor
+                #pragma region pressure_updater
+
+                for (int i = 0; i < N; i++) {
+
+                    p[i] += p_prime[i]; // Note that PISO does not require an under-relaxation factor
+                    p_storage[i + 1] = p[i];
+
+                }
+
+                p_storage[0] = p_storage[1];
+                p_storage[N + 1] = p_outlet;
+
+                #pragma endregion
 
                 // =======================================================================
                 //
@@ -433,14 +313,6 @@ int main() {
                 }
 
                 #pragma endregion
-
-                // Enforcing velocity BCs
-                u[0] = 0.0;
-                u[N - 1] = 0.0;
-
-                // Enforcing pressure BCs
-                p[0] = p[1];
-                p[N - 1] = p_outlet; 
 
             }
 
