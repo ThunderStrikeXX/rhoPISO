@@ -91,7 +91,7 @@ int main() {
 
     // Update equation of state
     auto eos_update = [&](std::vector<double>& rho_, const std::vector<double>& p_, const std::vector<double>& T_) {
-    // #pragma omp parallel
+    #pragma omp parallel
         for (int i = 0; i < N; i++) {
             double Ti = std::max(200.0, T_[i]);
             rho_[i] = std::max(1e-6, p_[i] / (Rv * Ti));
@@ -171,7 +171,7 @@ int main() {
 
             #pragma region momentum_predictor
 
-            // #pragma omp parallel
+            #pragma omp parallel
             for (int i = 1; i < N - 1; i++) {
 
                 const double rhie_chow_l = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
@@ -190,8 +190,6 @@ int main() {
                 cU[i] = std::max(-F_r, 0.0) - D;
                 bU[i] = (std::max(F_r, 0.0) - std::max(-F_l, 0.0)) + rho[i] * dz / dt + 2 * D;
                 dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dz / dt + Su[i] * dz;
-
-                printf("");
             }
 
             // Velocity BC: Dirichlet at l, dirichlet at r
@@ -214,7 +212,7 @@ int main() {
 
                 std::vector<double> aP(N, 0.0), bP(N, 0.0), cP(N, 0.0), dP(N, 0.0);
 
-                // // #pragma omp parallel
+                #pragma omp parallel
                 for (int i = 1; i < N - 1; i++) {
 
                     double rhie_chow_l = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
@@ -383,7 +381,7 @@ int main() {
         // Energy equation for T (implicit), upwind convection, central diffusion
         std::vector<double> aT(N, 0.0), bT(N, 0.0), cT(N, 0.0), dT(N, 0.0);
 
-        // #pragma omp parallel
+        #pragma omp parallel
         for (int i = 1; i < N - 1; i++) {
 
             double rhoCp_dt = rho_old[i] * cp / dt; // Termine transiente
