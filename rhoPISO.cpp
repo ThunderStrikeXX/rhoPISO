@@ -346,7 +346,6 @@ int main() {
     const double Rv = 361.8;                    // Gas constant for the sodium vapor [J/(kg K)]
     const double T_init = 1000;
 
-
     // Fields
     std::vector<double> u(N, 0.01), p(N, 50000.0), T(N, T_init), rho(N, 0.5);        // Collocated grid, values in center-cell
     std::vector<double> p_storage(N + 2, 50000.0);                                  // Storage for ghost nodes at the boundaries
@@ -426,12 +425,16 @@ int main() {
     const int rhie_chow_on_off = 1;                 // 0: no RC correction, 1: with RC correction
     const int SST_model_turbulence_on_off = 0;      // 0: no turbulence, 1: with turbulence
 
+    // The coefficient bU is needed in momentum predictor loop and pressure correction to estimate the velocities at the faces using the Rhie and Chow correction
     std::vector<double> aU(N, 0.0), bU(N, 2 * (4.0 / 3.0 * vapor_sodium::mu(T_init) / dz) + dz / dt * rho[0]), cU(N, 0.0), dU(N, 0.0);
 
     #pragma endregion
 
     // Output file
     std::ofstream fout("solution_rhoPISO.txt");
+
+    // Number of processors available for parallelization
+    printf("Threads: %d\n", omp_get_max_threads());
 
     for (double it = 0; it < t_iter; it++) {
 
@@ -448,7 +451,7 @@ int main() {
         rho_old = rho;
         p_old = p;
 
-        // PISO pressure correction loops
+        // PISO iterations
         double maxErr = 1.0;
         int iter = 0;
 
