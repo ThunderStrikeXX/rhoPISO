@@ -118,6 +118,9 @@ int main() {
     // Momentum source
     std::vector<double> Su(N, 0.0);
 
+    // Energy source
+    std::vector<double> St(N, 0.0);
+
     // Turbulence constants for sodium vapor (SST model)
     const double I = 0.05;                              // Turbulence intensity (5%)
     const double L_t = 0.07 * L;                        // Turbulence length scale
@@ -384,11 +387,11 @@ int main() {
         #pragma omp parallel
         for (int i = 1; i < N - 1; i++) {
 
-            double rhoCp_dt = rho_old[i] * cp / dt; // Termine transiente
+            double rhoCp_dt = rho_old[i] * cp / dt;
             double keff = k_cond + SST_model_turbulence_on_off * (mu_t[i] * cp / Pr_t);
 
-            double D_w = keff / (dz * dz); // Unità: W/(m^3 K)
-            double D_e = keff / (dz * dz); // Unità: W/(m^3 K)
+            double D_w = keff / (dz * dz);
+            double D_e = keff / (dz * dz);
 
             double rhie_chow_l = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
             double rhie_chow_r = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
@@ -413,11 +416,11 @@ int main() {
             bT[i] = A_w + A_e + rhoCp_dt;
 
             double pressure_work = (p[i] - p_old[i]) / dt;
-            dT[i] = rhoCp_dt * T_old[i] + pressure_work;
+            dT[i] = rhoCp_dt * T_old[i] + pressure_work + St[i];
 
         }
 
-        double rhoCp_dt = rho_old[1] * cp / dt; // Termine transiente
+        double rhoCp_dt = rho_old[1] * cp / dt;
         double keff = k_cond + SST_model_turbulence_on_off * (mu_t[N - 2] * cp / Pr_t);
 
         // Temperature BCs
