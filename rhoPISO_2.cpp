@@ -406,7 +406,7 @@ int main() {
         std::vector<double> aT(N, 0.0), bT(N, 0.0), cT(N, 0.0), dT(N, 0.0);
 
         // #pragma omp parallel
-        for (int i = 2; i < N - 2; i++) {
+        for (int i = 1; i < N - 1; i++) {
 
             double rhoCp_dt = rho_old[i] * cp / dt; // Termine transiente
             double keff = k_cond + SST_model_turbulence_on_off * (mu_t[i] * cp / Pr_t);
@@ -414,8 +414,8 @@ int main() {
             double D_w = keff / (dz * dz); // Unità: W/(m^3 K)
             double D_e = keff / (dz * dz); // Unità: W/(m^3 K)
 
-            double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p[i - 2] - 3 * p[i - 1] + 3 * p[i] - p[i + 1]);
-            double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p[i - 1] - 3 * p[i] + 3 * p[i + 1] - p[i + 2]);
+            double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+            double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
             double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
             double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
@@ -444,77 +444,16 @@ int main() {
         double rhoCp_dt = rho_old[1] * cp / dt; // Termine transiente
         double keff = k_cond + SST_model_turbulence_on_off * (mu_t[N - 2] * cp / Pr_t);
 
-        // Second node
-        double D_w_second = keff / (dz * dz); // Unità: W/(m^3 K)
-        double D_e_second = keff / (dz * dz); // Unità: W/(m^3 K)
-
-        double rhie_chow_left_second = -(1.0 / bU[0] + 1.0 / bU[1]) / (8 * dz) * (-2 * p[0] + 3 * p[1] - p[2]);
-        double rhie_chow_right_second = -(1.0 / bU[2] + 1.0 / bU[1]) / (8 * dz) * (p[0] - 3 * p[1] + 3 * p[2] - p[3]);
-
-        double u_left_face_second = 0.5 * (u[0] + u[1]) + rhie_chow_on_off * rhie_chow_left_second;
-        double u_right_face_second = 0.5 * (u[1] + u[2]) + rhie_chow_on_off * rhie_chow_right_second;
-
-        double rho_w_second = (u_left_face_second >= 0) ? rho[0] : rho[1];
-        double rho_e_second = (u_right_face_second >= 0) ? rho[1] : rho[2];
-
-        double Fw_second = rho_w_second * u_left_face_second;
-        double Fe_second = rho_e_second * u_right_face_second;
-
-        double C_w_dx_second = (Fw_second * cp) / dz;
-        double C_e_dx_second = (Fe_second * cp) / dz;
-
-        double A_w_second = D_w_second + std::max(C_w_dx_second, 0.0);
-        double A_e_second = D_e_second + std::max(-C_e_dx_second, 0.0);
-
-        aT[1] = -A_w_second;
-        cT[1] = -A_e_second;
-        bT[1] = A_w_second + A_e_second + rhoCp_dt;
-
-        double pressure_work_second = (p[1] - p_old[1]) / dt;
-        dT[1] = rhoCp_dt * T_old[1] + pressure_work_second;
-
-        // Second-to-last node
-        double rhoCp_dt_second_to_last = rho_old[N - 2] * cp / dt; // Termine transiente
-        double keff_second_to_last = k_cond + SST_model_turbulence_on_off * (mu_t[N - 2] * cp / Pr_t);
-
-        double D_w_second_to_last = keff / (dz * dz); // Unità: W/(m^3 K)
-        double D_e_second_to_last = keff / (dz * dz); // Unità: W/(m^3 K)
-
-        double rhie_chow_left_second_to_last = -(1.0 / bU[N - 3] + 1.0 / bU[N - 2]) / (8 * dz) * (p[N - 4] - 3 * p[N - 3] + 3 * p[N - 2] - p[N - 1]);
-        double rhie_chow_right_second_to_last = -(1.0 / bU[N - 1] + 1.0 / bU[N - 2]) / (8 * dz) * (p[N - 3] - 3 * p[N - 2] + 2 * p[N - 1]);
-
-        double u_left_face_second_to_last = 0.5 * (u[N - 3] + u[N - 2]) + rhie_chow_on_off * rhie_chow_left_second_to_last;
-        double u_right_face_second_to_last = 0.5 * (u[N - 2] + u[N - 1]) + rhie_chow_on_off * rhie_chow_right_second_to_last;
-
-        double rho_w_second_to_last = (u_left_face_second_to_last >= 0) ? rho[N - 3] : rho[N - 2];
-        double rho_e_second_to_last = (u_right_face_second_to_last >= 0) ? rho[N - 2] : rho[N - 1];
-
-        double Fw_second_to_last = rho_w_second_to_last * u_left_face_second_to_last;
-        double Fe_second_to_last = rho_e_second_to_last * u_right_face_second_to_last;
-
-        double C_w_dx_second_to_last = (Fw_second_to_last * cp) / dz;
-        double C_e_dx_second_to_last = (Fe_second_to_last * cp) / dz;
-
-        double A_w_second_to_last = D_w_second_to_last + std::max(C_w_dx_second_to_last, 0.0);
-        double A_e_second_to_last = D_e_second_to_last + std::max(-C_e_dx_second_to_last, 0.0);
-
-        aT[N - 2] = -A_w_second_to_last;
-        cT[N - 2] = -A_e_second_to_last;
-        bT[N - 2] = A_w_second_to_last + A_e_second_to_last + rhoCp_dt;
-
-        double pressure_work_second_to_last = (p[N - 2] - p_old[N - 2]) / dt;
-        dT[N - 2] = rhoCp_dt * T_old[N - 2] + pressure_work_second_to_last;
-
         // Temperature BCs
         bT[0] = 1.0; cT[0] = 0.0; dT[0] = T_inlet;
         aT[N - 1] = 0.0; bT[N - 1] = 1.0; dT[N - 1] = T_outlet;
 
         T = solveTridiagonal(aT, bT, cT, dT);
 
-        #pragma endregion
-
         // Update density with new p,T
         eos_update(rho, p, T);
+
+        #pragma endregion
 
         // =======================================================================
         //
