@@ -15,7 +15,7 @@
 
 // Solves a tridiagonal system Ax = d using the Thomas algorithm
 // a, b, c are the sub-diagonal, main diagonal, and super-diagonal of A
-// d is the right-hand side vector 
+// d is the r-hand side vector 
 std::vector<double> solveTridiagonal(const std::vector<double>& a,
     const std::vector<double>& b,
     const std::vector<double>& c,
@@ -137,7 +137,7 @@ int main() {
 
     // Models
     const int rhie_chow_on_off = 1;                 // 0: no RC correction, 1: with RC correction
-    const int SST_model_turbulence_on_off = 1;      // 0: no turbulence, 1: with turbulence
+    const int SST_model_turbulence_on_off = 0;      // 0: no turbulence, 1: with turbulence
 
     std::vector<double> aU(N, 0.0), bU(N, 2 * D + dz / dt * rho[0]), cU(N, 0.0), dU(N, 0.0);
 
@@ -174,49 +174,27 @@ int main() {
             // #pragma omp parallel
             for (int i = 1; i < N - 1; i++) {
 
-                double rhie_chow_left = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
-                double rhie_chow_right = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
+                const double rhie_chow_l = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+                const double rhie_chow_r = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
-                double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
-                double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
+                const double u_l_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
+                const double u_r_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
 
-                if (u_left_face >= 0 && u_right_face >= 0) {
+                const double rho_l = (u_l_face >= 0) ? rho[i - 1] : rho[i];
+                const double rho_r = (u_r_face >= 0) ? rho[i] : rho[i + 1];
 
-                    aU[i] = -u_left_face * rho[i - 1] - D;
-                    cU[i] = -D;
-                    bU[i] = u_right_face * rho[i] + rho[i] * dz / dt + 2 * D;
-                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dz / dt + Su[i] * dz;
+                const double F_l = rho_l * u_l_face;
+                const double F_r = rho_r * u_r_face;
 
-                }
-                else if (u_left_face >= 0 && u_right_face < 0) {
-
-                    aU[i] = -u_left_face * rho[i - 1] - D;
-                    cU[i] = u_right_face * rho[i + 1] - D;
-                    bU[i] = rho[i] * dz / dt + 2 * D;
-                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dz / dt + Su[i] * dz;
-
-                }
-                else if (u_left_face < 0 && u_right_face >= 0) {
-
-                    aU[i] = -D;
-                    cU[i] = -D;
-                    bU[i] = (u_right_face - u_left_face) * rho[i] + rho[i] * dz / dt + 2 * D;
-                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dz / dt + Su[i] * dz;
-
-                }
-                else if (u_left_face < 0 && u_right_face < 0) {
-
-                    aU[i] = -D;
-                    cU[i] = u_right_face * rho[i + 1] - D;
-                    bU[i] = -u_left_face * rho[i] + rho[i] * dz / dt + 2 * D;
-                    dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dz / dt + Su[i] * dz;
-
-                }
+                aU[i] = -std::max(F_l, 0.0) - D;
+                cU[i] = std::max(-F_r, 0.0) - D;
+                bU[i] = (std::max(F_r, 0.0) - std::max(-F_l, 0.0)) + rho[i] * dz / dt + 2 * D;
+                dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho[i] * u[i] * dz / dt + Su[i] * dz;
 
                 printf("");
             }
 
-            // Velocity BC: Dirichlet at left, dirichlet at right
+            // Velocity BC: Dirichlet at l, dirichlet at r
             bU[0] = rho[0] * dz / dt + 2 * D; cU[0] = 0.0; dU[0] = (rho[0] * dz / dt + 2 * D) * u_inlet;
             aU[N - 1] = 0.0; bU[N - 1] = rho[N - 1] * dz / dt + 2 * D; dU[N - 1] = (rho[N - 1] * dz / dt + 2 * D) * u_outlet;
 
@@ -239,8 +217,8 @@ int main() {
                 // // #pragma omp parallel
                 for (int i = 1; i < N - 1; i++) {
 
-                    double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
-                    double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
+                    double rhie_chow_l = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+                    double rhie_chow_r = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
                     double rho_w = 0.5 * (rho[i - 1] + rho[i]);
                     double d_w_face = 0.5 * (1.0 / bU[i - 1] + 1.0 / bU[i]); // 1/Ap average on west face
@@ -252,10 +230,10 @@ int main() {
 
                     double psi_i = 1.0 / (Rv * T[i]); // Compressibility assuming ideal gas
 
-                    double u_w_star = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
+                    double u_w_star = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
                     double mdot_w_star = (u_w_star > 0.0) ? rho[i - 1] * u_w_star : rho[i] * u_w_star;
 
-                    double u_e_star = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
+                    double u_e_star = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
                     double mdot_e_star = (u_e_star > 0.0) ? rho[i] * u_e_star : rho[i + 1] * u_e_star;
 
                     double mass_imbalance = (rho[i] - rho_old[i]) / dt + (mdot_e_star - mdot_w_star) / dz;
@@ -414,17 +392,17 @@ int main() {
             double D_w = keff / (dz * dz); // Unità: W/(m^3 K)
             double D_e = keff / (dz * dz); // Unità: W/(m^3 K)
 
-            double rhie_chow_left = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
-            double rhie_chow_right = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
+            double rhie_chow_l = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+            double rhie_chow_r = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
-            double u_left_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_left;
-            double u_right_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_right;
+            double u_l_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
+            double u_r_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
 
-            double rho_w = (u_left_face >= 0) ? rho[i - 1] : rho[i];
-            double rho_e = (u_right_face >= 0) ? rho[i] : rho[i + 1];
+            double rho_w = (u_l_face >= 0) ? rho[i - 1] : rho[i];
+            double rho_e = (u_r_face >= 0) ? rho[i] : rho[i + 1];
 
-            double Fw = rho_w * u_left_face;
-            double Fe = rho_e * u_right_face;
+            double Fw = rho_w * u_l_face;
+            double Fe = rho_e * u_r_face;
 
             double C_w_dx = (Fw * cp) / dz;
             double C_e_dx = (Fe * cp) / dz;
