@@ -56,8 +56,9 @@ int main() {
 
     // Geometry and numerics
     const double L = 1.0;                       // Length of the domain [m]
-    const int    N = 100;                      // Number of nodes [-]
-    const double dz = L / (N - 1);             // Grid spacing [m]
+    const int    N = 100;                       // Number of nodes [-]
+    const double dz = L / (N - 1);              // Grid spacing [m]
+    const double D_pipe = 0.1;                  // Pipe diameter [m], used only to estimate Reynolds number
 
     const double dt = 0.001;                           // Timestep [s]
     const double t_max = 1.0;                          // Time interval [s]
@@ -116,10 +117,10 @@ int main() {
     std::vector<double> Su(N, 0.0);
 
     // Turbulence constants for sodium vapor (SST model)
-    const double I = 0.05;                          // Turbulence intensity (5%)
-    const double L_t = 0.07 * L;                    // Turbulence length scale
-    const double k0 = 1.5 * pow(I * 0.01, 2);        // Initial turbulent kinetic energy
-    const double omega0 = sqrt(k0) / (0.09 * L_t);        // Initial specific dissipation
+    const double I = 0.05;                              // Turbulence intensity (5%)
+    const double L_t = 0.07 * L;                        // Turbulence length scale
+    const double k0 = 1.5 * pow(I * 0.01, 2);           // Initial turbulent kinetic energy
+    const double omega0 = sqrt(k0) / (0.09 * L_t);      // Initial specific dissipation
     const double sigma_k = 0.85;
     const double sigma_omega = 0.5;
     const double beta_star = 0.09;
@@ -133,7 +134,7 @@ int main() {
 
     // Models
     const int rhie_chow_on_off = 1;                 // 0: no RC correction, 1: with RC correction
-    const int SST_model_turbulence_on_off = 0;      // 0: no turbulence, 1: with turbulence
+    const int SST_model_turbulence_on_off = 1;      // 0: no turbulence, 1: with turbulence
 
     #pragma endregion
 
@@ -142,7 +143,9 @@ int main() {
 
     for (double it = 0; it < t_iter; it++) {
 
-        std::cout << "Solving! Time elapsed:" << dt * it << "/" << t_max << ", max courant number: " << *std::max_element(u.begin(),u.end()) * dt / dz << "\n";
+        std::cout << "Solving! Time elapsed:" << dt * it << "/" << t_max 
+                        << ", max courant number: " << *std::max_element(u.begin(),u.end()) * dt / dz
+                        << ", max reynolds number: " << *std::max_element(u.begin(), u.end()) * D_pipe * *std::max_element(rho.begin(), rho.end()) / mu << "\n";
 
         // Backup variables
         T_old = T;
