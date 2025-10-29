@@ -397,8 +397,8 @@ int main() {
 
     for (int ix = 1; ix < N - 1; ++ix) {
 
-        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 1000000.0;
-        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -1000000.0;
+        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 500000.0;
+        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -500000.0;
 
     }
 
