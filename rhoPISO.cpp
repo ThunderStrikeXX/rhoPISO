@@ -510,11 +510,11 @@ int main() {
 
                 // =======================================================================
                 //
-                //                        [MASS SATISFACTOR]
+                //                      [CONTINUITY SATISFACTOR]
                 //
                 // =======================================================================
 
-                #pragma region pressure_corrector
+                #pragma region continuity_satisfactor
 
                 std::vector<double> aP(N, 0.0), bP(N, 0.0), cP(N, 0.0), dP(N, 0.0);
 
@@ -528,23 +528,23 @@ int main() {
                     const double rhie_chow_l = -(1.0 / bVU[i - 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
                     const double rhie_chow_r = -(1.0 / bVU[i + 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
-                    const double rho_w = 0.5 * (rho[i - 1] + rho[i]);
-                    const double d_w_face = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // 1/Ap average on west face
-                    const double E_l = rho_w * d_w_face / dz;
+                    const double rho_l = 0.5 * (rho[i - 1] + rho[i]);
+                    const double d_l_face = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // 1/Ap average on west face
+                    const double E_l = rho_l * d_l_face / dz;
 
-                    const double rho_e = 0.5 * (rho[i] + rho[i + 1]);
-                    const double d_e_face = 0.5 * (1.0 / bVU[i] + 1.0 / bVU[i + 1]);  // 1/Ap average on east face
-                    const double E_r = rho_e * d_e_face / dz;
+                    const double rho_r = 0.5 * (rho[i] + rho[i + 1]);
+                    const double d_r_face = 0.5 * (1.0 / bVU[i] + 1.0 / bVU[i + 1]);  // 1/Ap average on east face
+                    const double E_r = rho_r * d_r_face / dz;
 
                     const double psi_i = 1.0 / (Rv * T[i]); // Compressibility assuming ideal gas
 
-                    const double u_w_star = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
-                    const double mdot_w_star = (u_w_star > 0.0) ? rho_L * u_w_star : rho_P * u_w_star;
+                    const double u_l_star = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
+                    const double mdot_l_star = (u_l_star > 0.0) ? rho_L * u_l_star : rho_P * u_l_star;
 
-                    const double u_e_star = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
-                    const double mdot_e_star = (u_e_star > 0.0) ? rho_P * u_e_star : rho_R * u_e_star;
+                    const double u_r_star = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
+                    const double mdot_r_star = (u_r_star > 0.0) ? rho_P * u_r_star : rho_R * u_r_star;
 
-                    const double mass_imbalance = (rho_P - rho_old[i]) * dz / dt + (mdot_e_star - mdot_w_star);
+                    const double mass_imbalance = (rho_P - rho_old[i]) * dz / dt + (mdot_r_star - mdot_l_star);
 
                     aP[i] = -E_l;
                     cP[i] = -E_r;
@@ -568,7 +568,7 @@ int main() {
                 //
                 // =======================================================================
 
-                #pragma region pressure_updater
+                #pragma region pressure_corrector
 
                 for (int i = 0; i < N; i++) {
 
@@ -588,7 +588,7 @@ int main() {
                 //
                 // =======================================================================
 
-                #pragma region velocity_updater
+                #pragma region velocity_corrector
 
                 maxErr = 0.0;
                 for (int i = 1; i < N - 1; i++) {
