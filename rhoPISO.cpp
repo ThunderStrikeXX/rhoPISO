@@ -425,8 +425,8 @@ int main() {
     const int rhie_chow_on_off = 1;                 // 0: no RC correction, 1: with RC correction
     const int SST_model_turbulence_on_off = 0;      // 0: no turbulence, 1: with turbulence
 
-    // The coefficient bU is needed in momentum predictor loop and pressure correction to estimate the velocities aVT the faces using the Rhie and Chow correction
-    std::vector<double> aU(N, 0.0), bU(N, 2 * (4.0 / 3.0 * vapor_sodium::mu(T_init) / dz) + dz / dt * rho[0]), cU(N, 0.0), dU(N, 0.0);
+    // The coefficient bVU is needed in momentum predictor loop and pressure correction to estimate the velocities aVT the faces using the Rhie and Chow correction
+    std::vector<double> aVU(N, 0.0), bVU(N, 2 * (4.0 / 3.0 * vapor_sodium::mu(T_init) / dz) + dz / dt * rho[0]), cVU(N, 0.0), dVU(N, 0.0);
 
     #pragma endregion
 
@@ -474,8 +474,8 @@ int main() {
                 const double D_l = 0.5 * (rho_P + rho_L) / dz;
                 const double D_r = 0.5 * (rho_P + rho_R) / dz;
 
-                const double rhie_chow_l = - (1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
-                const double rhie_chow_r = - (1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
+                const double rhie_chow_l = - (1.0 / bVU[i - 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+                const double rhie_chow_r = - (1.0 / bVU[i + 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
                 const double u_l_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
                 const double u_r_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
@@ -486,20 +486,20 @@ int main() {
                 const double F_l = rho_l * u_l_face;
                 const double F_r = rho_r * u_r_face;
 
-                aU[i] = -std::max(F_l, 0.0) - D_l;
-                cU[i] = std::max(-F_r, 0.0) - D_r;
-                bU[i] = (std::max(F_r, 0.0) - std::max(-F_l, 0.0)) + rho_P * dz / dt + D_l + D_r;
-                dU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho_P * u[i] * dz / dt + Su[i] * dz;
+                aVU[i] = -std::max(F_l, 0.0) - D_l;
+                cVU[i] = std::max(-F_r, 0.0) - D_r;
+                bVU[i] = (std::max(F_r, 0.0) - std::max(-F_l, 0.0)) + rho_P * dz / dt + D_l + D_r;
+                dVU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho_P * u[i] * dz / dt + Su[i] * dz;
             }
 
             // Velocity BC: Dirichlet aVT l, dirichlet aVT r
             const double D_first = 4.0 / 3.0 * vapor_sodium::mu(T[0]) / dz;
             const double D_last = 4.0 / 3.0 * vapor_sodium::mu(T[N - 1]) / dz;
 
-            bU[0] = rho[0] * dz / dt + 2 * D_first; cU[0] = 0.0; dU[0] = (rho[0] * dz / dt + 2 * D_first) * u_inlet;
-            aU[N - 1] = 0.0; bU[N - 1] = rho[N - 1] * dz / dt + 2 * D_last; dU[N - 1] = (rho[N - 1] * dz / dt + 2 * D_last) * u_outlet;
+            bVU[0] = rho[0] * dz / dt + 2 * D_first; cVU[0] = 0.0; dVU[0] = (rho[0] * dz / dt + 2 * D_first) * u_inlet;
+            aVU[N - 1] = 0.0; bVU[N - 1] = rho[N - 1] * dz / dt + 2 * D_last; dVU[N - 1] = (rho[N - 1] * dz / dt + 2 * D_last) * u_outlet;
 
-            u = solveTridiagonal(aU, bU, cU, dU);
+            u = solveTridiagonal(aVU, bVU, cVU, dVU);
 
             #pragma endregion
 
@@ -522,15 +522,15 @@ int main() {
                     const double rho_L = rho[i - 1];
                     const double rho_R = rho[i + 1];
 
-                    const double rhie_chow_l = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
-                    const double rhie_chow_r = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
+                    const double rhie_chow_l = -(1.0 / bVU[i - 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+                    const double rhie_chow_r = -(1.0 / bVU[i + 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
                     const double rho_w = 0.5 * (rho[i - 1] + rho[i]);
-                    const double d_w_face = 0.5 * (1.0 / bU[i - 1] + 1.0 / bU[i]); // 1/Ap average on west face
+                    const double d_w_face = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // 1/Ap average on west face
                     const double E_l = rho_w * d_w_face / dz;
 
                     const double rho_e = 0.5 * (rho[i] + rho[i + 1]);
-                    const double d_e_face = 0.5 * (1.0 / bU[i] + 1.0 / bU[i + 1]);  // 1/Ap average on east face
+                    const double d_e_face = 0.5 * (1.0 / bVU[i] + 1.0 / bVU[i + 1]);  // 1/Ap average on east face
                     const double E_r = rho_e * d_e_face / dz;
 
                     const double psi_i = 1.0 / (Rv * T[i]); // Compressibility assuming ideal gas
@@ -591,7 +591,7 @@ int main() {
                 for (int i = 1; i < N - 1; i++) {
 
                     double u_prev = u[i];
-                    u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dz * bU[i]);
+                    u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dz * bVU[i]);
                     maxErr = std::max(maxErr, std::fabs(u[i] - u_prev));
                 }
 
@@ -719,8 +719,8 @@ int main() {
             const double D_l = 0.5 * (keff_P + keff_L) / dz;
             const double D_r = 0.5 * (keff_P + keff_R) / dz;
 
-            const double rhie_chow_l = -(1.0 / bU[i - 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
-            const double rhie_chow_r = -(1.0 / bU[i + 1] + 1.0 / bU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
+            const double rhie_chow_l = -(1.0 / bVU[i - 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
+            const double rhie_chow_r = -(1.0 / bVU[i + 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
 
             const double u_l_face = 0.5 * (u[i - 1] + u[i]) + rhie_chow_on_off * rhie_chow_l;
             const double u_r_face = 0.5 * (u[i] + u[i + 1]) + rhie_chow_on_off * rhie_chow_r;
