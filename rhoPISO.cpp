@@ -357,8 +357,6 @@ int main() {
     const double u_inlet = 0.0;         // Inlet velocity [m/s]
     const double u_outlet = 0.0;        // Outlet velocity [m/s]
     const double p_outlet = 50000.0;    // Outlet pressure [Pa]
-    const double T_inlet = 1200.0;       // Inlet temperature [K] (evaporator)
-    const double T_outlet = 900.0;      // Outlet temperature [K] (condenser)
 
     // Update equation of state
     auto eos_update = [&](std::vector<double>& rho_, const std::vector<double>& p_, const std::vector<double>& T_) {
@@ -380,8 +378,8 @@ int main() {
 
     for (int ix = 1; ix < N - 1; ++ix) {
         
-        if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 1.0;
-        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -1.0;
+        if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 0.1;
+        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -0.1;
 
     }
 
@@ -399,8 +397,8 @@ int main() {
 
     for (int ix = 1; ix < N - 1; ++ix) {
 
-        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 1.0;
-        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -1.0;
+        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 1000000.0;
+        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -1000000.0;
 
     }
 
@@ -471,8 +469,13 @@ int main() {
                 const double rho_P = rho[i];
                 const double rho_L = rho[i - 1];
                 const double rho_R = rho[i + 1];
-                const double D_l = 0.5 * (rho_P + rho_L) / dz;
-                const double D_r = 0.5 * (rho_P + rho_R) / dz;
+
+                const double mu_P = vapor_sodium::mu(T[i]);
+                const double mu_L = vapor_sodium::mu(T[i - 1]);
+                const double mu_R = vapor_sodium::mu(T[i + 1]);
+
+                const double D_l = 4.0 / 3.0 * 0.5 * (mu_P + mu_L) / dz;
+                const double D_r = 4.0 / 3.0 * 0.5 * (mu_P + mu_R) / dz;
 
                 const double rhie_chow_l = - (1.0 / bVU[i - 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 2] - 3 * p_padded[i - 1] + 3 * p_padded[i] - p_padded[i + 1]);
                 const double rhie_chow_r = - (1.0 / bVU[i + 1] + 1.0 / bVU[i]) / (8 * dz) * (p_padded[i - 1] - 3 * p_padded[i] + 3 * p_padded[i + 1] - p_padded[i + 2]);
@@ -613,6 +616,8 @@ int main() {
 
         #pragma region turbulence_SST
 
+        // TODO: check discretization scheme
+
         if(SST_model_turbulence_on_off == 1) {
 
             // --- Turbulence transport equations (1D implicit form) ---
@@ -697,9 +702,9 @@ int main() {
         #pragma omp parallel
         for (int i = 1; i < N - 1; i++) {
 
-            const const double rho_P = rho[i];
-            const const double rho_L = rho[i - 1];
-            const const double rho_R = rho[i + 1];
+            const double rho_P = rho[i];
+            const double rho_L = rho[i - 1];
+            const double rho_R = rho[i + 1];
 
             const double k_cond_P = vapor_sodium::k(T[i], p[i]);
             const double k_cond_L = vapor_sodium::k(T[i - 1], p[i - 1]);
@@ -744,13 +749,13 @@ int main() {
             bVT[i] = std::max(-C_l, 0.0) + std::max(C_r, 0.0) + D_l + D_r + rhoCp_dzdt;
 
             const double pressure_work = (p[i] - p_old[i]) / dt;
-            dVT[i] = rhoCp_dzdt * T_old[i] + pressure_work + St[i] * dz;
+            dVT[i] = rhoCp_dzdt * T_old[i] + pressure_work * dz + St[i] * dz;
 
         }
 
         // Temperature BCs
-        bVT[0] = 1.0; cVT[0] = 0.0; dVT[0] = T_inlet;
-        aVT[N - 1] = 0.0; bVT[N - 1] = 1.0; dVT[N - 1] = T_outlet;
+        bVT[0] = 1.0; cVT[0] = -1.0; dVT[0] = 0.0;
+        aVT[N - 1] = -1.0; bVT[N - 1] = 1.0; dVT[N - 1] = 0.0;
 
         T = solveTridiagonal(aVT, bVT, cVT, dVT);
 
