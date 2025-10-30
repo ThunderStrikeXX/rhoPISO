@@ -197,7 +197,10 @@ namespace vapor_sodium {
     }
 
     // Dynamic viscosity of sodium vapor [Pa·s]
-    inline double mu(double T) { return 6.083e-9 * T + 1.2606e-5; }
+    inline double mu(double T) { 
+        return 6.083e-9 * T + 1.2606e-5; 
+    
+    }
 
     /**
      * @brief Calculates the Thermal Conductivity (k) of sodium vapor over an extended range.
@@ -295,7 +298,7 @@ namespace vapor_sodium {
             return k_extrap;
         }
 
-        return k_interp;
+       return k_interp;
     }
 
 
@@ -351,7 +354,7 @@ int main() {
 
     // Time-stepping parameters
     const double dt = 0.001;                                // Timestep [s]
-    const double t_max = 1.0;                               // Time interval [s]
+    const double t_max = 5.0;                               // Time interval [s]
     const int t_iter = (int)std::round(t_max / dt);         // Number of timesteps [-]
 
     // PISO parameters
@@ -414,8 +417,8 @@ int main() {
 
     for (int ix = 1; ix < N - 1; ++ix) {
 
-        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 500000.0;
-        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -500000.0;
+        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 272000.0;
+        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -272000.0;
 
     }
 
@@ -599,6 +602,12 @@ int main() {
 
                 #pragma endregion
 
+                // Save density connected to the pressure field of timestep n
+                rho_old = rho;
+
+                // Update density with new p,T, to get the density connected to the pressure field of timestep n+1
+                eos_update(rho, p, T);
+
                 // =======================================================================
                 //
                 //                        [VELOCITY CORRECTOR]
@@ -617,13 +626,11 @@ int main() {
 
                 #pragma endregion
 
+
             }
 
             iter++;
         }
-
-        // Update density with new p,T
-        eos_update(rho, p, T);
 
         // =======================================================================
         //
