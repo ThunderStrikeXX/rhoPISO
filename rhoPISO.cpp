@@ -68,20 +68,37 @@ namespace liquid_sodium {
     // Critical temperature [K]
     constexpr double Tcrit = 2509.46;
 
+    // Solidification temperature, gives warning if below
+    constexpr double Tsolid = 370.87;
+
     // Density [kg/m^3]
-    double rho(double T) { return 219.0 + 275.32 * (1.0 - T / Tcrit) + 511.58 * pow(1.0 - T / Tcrit, 0.5); }
+    double rho(double T) {
+
+        if (T < Tsolid) std::cout << "Warning, temperature " << T << " is below solidification temperature!";
+        return 219.0 + 275.32 * (1.0 - T / Tcrit) + 511.58 * pow(1.0 - T / Tcrit, 0.5);
+    }
 
     // Thermal conductivity [W/(m·K)]
-    double k(double T) { return 124.67 - 0.11381 * T + 5.5226e-5 * T * T - 1.1842e-8 * T * T * T; }
+    double k(double T) {
+
+        if (T < Tsolid) std::cout << "Warning, temperature " << T << " is below solidification temperature!";
+        return 124.67 - 0.11381 * T + 5.5226e-5 * T * T - 1.1842e-8 * T * T * T;
+    }
 
     // Specific heat [J/(kg·K)]
     double cp(double T) {
-        double dVT = T - 273.15;
-        return 1436.72 - 0.58 * dVT + 4.627e-4 * dVT * dVT;
+
+        if (T < Tsolid) std::cout << "Warning, temperature " << T << " is below solidification temperature!";
+        double dXT = T - 273.15;
+        return 1436.72 - 0.58 * dXT + 4.627e-4 * dXT * dXT;
     }
 
     // Dynamic viscosity [Pa·s] using Shpilrain et al. correlation, valid for 371 K < T < 2500 K
-    double mu(double T) { return std::exp(-6.4406 - 0.3958 * std::log(T) + 556.835 / T); }
+    double mu(double T) {
+
+        if (T < Tsolid) std::cout << "Warning, temperature " << T << " is below solidification temperature!";
+        return std::exp(-6.4406 - 0.3958 * std::log(T) + 556.835 / T);
+    }
 }
 
 #pragma endregion
