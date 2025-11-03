@@ -44,6 +44,15 @@ std::vector<double> solveTridiagonal(const std::vector<double>& a,
     return x;
 }
 
+// Initializes vector with equally spaced values between min and max
+std::vector<double> linspace(double T_min, double T_max, int N) {
+    std::vector<double> T(N);
+    double dT = (T_max - T_min) / (N - 1);
+    for (int i = 0; i < N; i++) T[i] = T_min + i * dT;
+    return T;
+}
+
+
 #pragma endregion
 
 // =======================================================================
@@ -348,7 +357,7 @@ int main() {
 
     // Geometric parameters
     const double L = 1.0;                       // Length of the domain [m]
-    const int    N = 1000;                       // Number of nodes [-]
+    const int    N = 100;                       // Number of nodes [-]
     const double dz = L / N;                    // Grid spacing [m]
     const double D_pipe = 0.1;                  // Pipe diameter [m], used only to estimate Reynolds number
 
@@ -396,10 +405,12 @@ int main() {
     const double mass_source_nodes = std::floor(N * mass_source_zone);
     const double mass_sink_nodes = std::floor(N * mass_sink_zone);
 
+    //Sm = linspace(50.0, -50.0, N);
+
     for (int ix = 1; ix < N - 1; ++ix) {
         
         if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 10.0;
-        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -1.0;
+        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -10.0;
 
     }
 
@@ -525,20 +536,20 @@ int main() {
             }
 
             // Velocity BC: Dirichlet aVT l, dirichlet aVT r
-            const double D_first = 4.0 / 3.0 * 0.5 * (vapor_sodium::mu(T_v_bulk[0]) + vapor_sodium::mu(T_v_bulk[1])) / dz;
-            const double D_last = 4.0 / 3.0 * 0.5 * (vapor_sodium::mu(T_v_bulk[N - 1]) + vapor_sodium::mu(T_v_bulk[N - 2])) / dz;
+            const double D_first = 4.0 / 3.0 * 0.5 * (vapor_sodium::mu(T[0]) + vapor_sodium::mu(T[1])) / dz;
+            const double D_last = 4.0 / 3.0 * 0.5 * (vapor_sodium::mu(T[N - 1]) + vapor_sodium::mu(T[N - 2])) / dz;
 
-            const double u_r_face_first = 0.5 * (u_v[1]);
-            const double rho_r_first = (u_r_face_first >= 0) ? rho_v[0] : rho_v[1];
+            const double u_r_face_first = 0.5 * (u[1]);
+            const double rho_r_first = (u_r_face_first >= 0) ? rho[0] : rho[1];
             const double F_r_first = rho_r_first * u_r_face_first;
 
-            const double u_l_face_last = 0.5 * (u_v[N - 2]);
-            const double rho_l_last = (u_l_face_last >= 0) ? rho_v[N - 2] : rho_v[N - 1];
+            const double u_l_face_last = 0.5 * (u[N - 2]);
+            const double rho_l_last = (u_l_face_last >= 0) ? rho[N - 2] : rho[N - 1];
             const double F_l_last = rho_l_last * u_l_face_last;
 
             // Friction factor is zero since velocity is zero due to BCs
-            bVU[0] = std::max(F_r_first, 0.0) + rho_v[0] * dz / dt + 2 * D_first;
-            bVU[N - 1] = -std::max(-F_l_last, 0.0) + rho_v[N - 1] * dz / dt + 2 * D_last;
+            bVU[0] = std::max(F_r_first, 0.0) + rho[0] * dz / dt + 2 * D_first;
+            bVU[N - 1] = -std::max(-F_l_last, 0.0) + rho[N - 1] * dz / dt + 2 * D_last;
 
             cVU[0] = 0.0; dVU[0] = bVU[0] * u_inlet;
             aVU[N - 1] = 0.0;  dVU[N - 1] = bVU[N - 1] * u_outlet;
