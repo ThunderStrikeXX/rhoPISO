@@ -409,8 +409,8 @@ int main() {
 
     for (int ix = 1; ix < N - 1; ++ix) {
         
-        if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 10.0;
-        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -10.0;
+        if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 100.0;
+        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -100.0;
 
     }
 
@@ -428,8 +428,8 @@ int main() {
 
     for (int ix = 1; ix < N - 1; ++ix) {
 
-        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 270000.0;
-        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = -270000.0;
+        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 0.0;
+        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = 0.0;
 
     }
 
@@ -816,7 +816,7 @@ int main() {
         bVT[0] = 1.0; cVT[0] = -1.0; dVT[0] = 0.0;
         aVT[N - 1] = -1.0; bVT[N - 1] = 1.0; dVT[N - 1] = 0.0;
 
-        T = solveTridiagonal(aVT, bVT, cVT, dVT);
+        //T = solveTridiagonal(aVT, bVT, cVT, dVT);
 
         // Update density with new p,T
         eos_update(rho, p, T);
