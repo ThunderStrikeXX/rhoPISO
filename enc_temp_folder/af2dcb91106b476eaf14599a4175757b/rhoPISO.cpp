@@ -95,6 +95,8 @@ double new_dt(double dz, double dt_old,
             double Er = rhoR * invbR / dz;
             double psi = 1.0 / (Rv * T[i]);
             dt_p = CP * psi * dz / (El + Er + 1e-30);
+
+            printf("");
         }
 
         double dti = std::min(std::min(dt_c, dt_s), std::min(dt_s, dt_p));
@@ -590,6 +592,8 @@ int main() {
                 cVU[i] = -std::max(-F_r, 0.0) - D_r; 
                 bVU[i] = (std::max(F_r, 0.0) + std::max(-F_l, 0.0)) + rho_P * dz / dt + D_l + D_r + F;
                 dVU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho_P * u[i] * dz / dt + Su[i] * dz;
+
+                printf("");
             }
 
             // Velocity BC: Dirichlet aVT l, dirichlet aVT r
@@ -611,6 +615,8 @@ int main() {
             cVU[0] = 0.0; dVU[0] = bVU[0] * u_inlet;
             aVU[N - 1] = 0.0;  dVU[N - 1] = bVU[N - 1] * u_outlet;
             u = solveTridiagonal(aVU, bVU, cVU, dVU);
+
+            printf("");
 
             #pragma endregion
 
@@ -662,6 +668,8 @@ int main() {
                     cP[i] = -E_r;
                     bP[i] = E_l + E_r + psi_i * dz / dt;
                     dP[i] = Sm[i] * dz - mass_imbalance;
+
+                    printf("");
                 }
 
                 // BCs for p': zero gradient aVT inlet and zero correction aVT outlet
@@ -669,6 +677,8 @@ int main() {
                 bP[N - 1] = 1.0; aP[N - 1] = 0.0; dP[N - 1] = 0.0;
 
                 p_prime = solveTridiagonal(aP, bP, cP, dP);
+
+                printf("");
 
                 #pragma endregion
 
@@ -701,6 +711,8 @@ int main() {
                 // Update density with new p,T, to get the density connected to the pressure field of timestep n+1
                 eos_update(rho, p, T);
 
+                printf("");
+
                 // =======================================================================
                 //
                 //                        [VELOCITY CORRECTOR]
@@ -721,10 +733,15 @@ int main() {
                 #pragma endregion
 
                 inner_iter++;
+
+                printf("");
+
             }
 
             outer_iter++;
         }
+
+        printf("");
 
         // =======================================================================
         //
