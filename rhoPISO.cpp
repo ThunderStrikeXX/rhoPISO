@@ -217,7 +217,7 @@ namespace vapor_sodium {
     }
 
     // Derivative of saturation pressure with respect to temperature [Pa/K]
-    inline double dP_sat_dVT(double T) {
+    inline double dVP_sat_dVT(double T) {
 
         const double val_MPa_per_K =
             (12633.73 / (T * T) - 0.4672 / T) * std::exp(11.9463 - 12633.73 / T - 0.4672 * std::log(T));
@@ -228,9 +228,9 @@ namespace vapor_sodium {
     inline double rho(double T) {
 
         const double hv = h_vap(T);                         // [J/kg]
-        const double dPdVT = dP_sat_dVT(T);                   // [Pa/K]
+        const double dVPdVT = dVP_sat_dVT(T);                   // [Pa/K]
         const double rhol = liquid_sodium::rho(T);          // [kg/m^3]
-        const double denom = hv / (T * dPdVT) + 1.0 / rhol;
+        const double denom = hv / (T * dVPdVT) + 1.0 / rhol;
         return 1.0 / denom;                                 // [kg/m^3]
     }
 
@@ -628,7 +628,7 @@ int main() {
 
                 #pragma region continuity_satisfactor
 
-                std::vector<double> aP(N, 0.0), bP(N, 0.0), cP(N, 0.0), dP(N, 0.0);
+                std::vector<double> aVP(N, 0.0), bVP(N, 0.0), cVP(N, 0.0), dVP(N, 0.0);
 
                 #pragma omp parallel
                 for (int i = 1; i < N - 1; i++) {
@@ -658,17 +658,17 @@ int main() {
 
                     const double mass_imbalance = (rho_P - rho_old[i]) * dz / dt + (mdot_r_star - mdot_l_star);
 
-                    aP[i] = -E_l;
-                    cP[i] = -E_r;
-                    bP[i] = E_l + E_r + psi_i * dz / dt;
-                    dP[i] = Sm[i] * dz - mass_imbalance;
+                    aVP[i] = -E_l;
+                    cVP[i] = -E_r;
+                    bVP[i] = E_l + E_r + psi_i * dz / dt;
+                    dVP[i] = Sm[i] * dz - mass_imbalance;
                 }
 
                 // BCs for p': zero gradient aVT inlet and zero correction aVT outlet
-                bP[0] = 1.0; cP[0] = -1.0; dP[0] = 0.0;
-                bP[N - 1] = 1.0; aP[N - 1] = 0.0; dP[N - 1] = 0.0;
+                bVP[0] = 1.0; cVP[0] = -1.0; dVP[0] = 0.0;
+                bVP[N - 1] = 1.0; aVP[N - 1] = 0.0; dVP[N - 1] = 0.0;
 
-                p_prime = solveTridiagonal(aP, bP, cP, dP);
+                p_prime = solveTridiagonal(aVP, bVP, cVP, dVP);
 
                 #pragma endregion
 
@@ -875,7 +875,7 @@ int main() {
         bVT[0] = 1.0; cVT[0] = -1.0; dVT[0] = 0.0;
         aVT[N - 1] = -1.0; bVT[N - 1] = 1.0; dVT[N - 1] = 0.0;
 
-        //T = solveTridiagonal(aVT, bVT, cVT, dVT);
+        T = solveTridiagonal(aVT, bVT, cVT, dVT);
 
         // Update density with new p,T
         eos_update(rho, p, T);
