@@ -63,26 +63,28 @@ double new_dt(double dz, double dt_old,
     const std::vector<double>& Sm,
     const std::vector<double>& bVU) {
 
-    const double gamma = 1.32;                               // Vapor sodium gas constant [-]
-    const double Rv = 361.8;                                 // Gas constant for the sodium vapor [J/(kg K)]
-    const double CFL = 0.5, CS = 0.5, CP = 0.5;   // Limit coefficients
-    const double epsS = 1e-12, theta = 0.9, rdown = 0.2;
-    const double dt_min = 1e-12, dt_max = 1e3;
+    const double gamma = 1.32;                                  // Vapor sodium gas constant [-]
+    const double Rv = 361.8;                                    // Gas constant for the sodium vapor [J/(kg K)]
+    const double CFL = 0.5, CS = 0.5, CP = 0.5;                 // Limit coefficients
+    const double epsS = 1e-12;                                  // This is to prevent divisions by zero (e.g. if the source is zero)
+    const double theta = 0.9;                                   // Adjusting coefficient for the timestep candidate 
+    const double rdown = 0.2;                                   // Coefficient for damping the timestep correction
+    const double dt_min = 1e-12, dt_max = 1e3;                  // Timestep boundaries [s]
 
     int N = u.size();
     auto invb = [&](int i) { return 1.0 / std::max(bVU[i], 1e-30); };
 
-    double dtcand = dt_max;
+    double dt_cand = dt_max;
     for (int i = 0; i < N; ++i) {
+
+        // Minimum time step due to CFL
         double a = std::sqrt(gamma * Rv * T[i]);
         double dt_c = CFL * dz / (std::abs(u[i]) + a);
 
-        // se diffusivo: definisci nu[i], altrimenti salta
-        double dt_d = 1e99; // o CD * dz*dz / nu[i];
-
+        // Minimum time step due to CS limit
         double dt_s = CS * rho[i] / (std::abs(Sm[i]) + epsS);
 
-        // coeff facciali per p' (servono i vicini interni)
+        // Minimum time step due to CP limit
         double dt_p = 1e99;
         if (i > 0 && i < N - 1) {
             double invbL = 0.5 * (invb(i - 1) + invb(i));
@@ -95,11 +97,12 @@ double new_dt(double dz, double dt_old,
             dt_p = CP * psi * dz / (El + Er + 1e-30);
         }
 
-        double dti = std::min(std::min(dt_c, dt_d), std::min(dt_s, dt_p));
-        dtcand = std::min(dtcand, dti);
+        double dti = std::min(std::min(dt_c, dt_s), std::min(dt_s, dt_p));
+        dt_cand = std::min(dt_cand, dti);           // Loop on each node to find the minimum timestep necessary
     }
 
-    double dt_new = std::min(dt_max, std::max(dt_min, std::max(theta * dtcand, rdown * dt_old)));
+    // Timestep lower boundary overrall and damping the correction
+    double dt_new = std::min(dt_max, std::max(dt_min, std::max(theta * dt_cand, rdown * dt_old)));
     return dt_new;
 }
 
