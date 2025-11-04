@@ -367,7 +367,7 @@ int main() {
     const int t_iter = (int)std::round(t_max / dt);         // Number of timesteps [-]
 
     // PISO parameters
-    const int tot_iter = 10000;                   // Inner iterations per step [-]
+    const int tot_iter = 100000;                   // Inner iterations per step [-]
     const int corr_iter = 2;                    // PISO correctors per iteration [-]
     const double tol = 1e-8;                    // Tolerance for the inner iterations [-]
 
@@ -405,14 +405,14 @@ int main() {
     const double mass_source_nodes = std::floor(N * mass_source_zone);
     const double mass_sink_nodes = std::floor(N * mass_sink_zone);
 
-    //Sm = linspace(50.0, -50.0, N);
+    Sm = linspace(1000.0, -1000.0, N);
 
-    for (int ix = 1; ix < N - 1; ++ix) {
-        
-        if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 100.0;
-        else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -100.0;
+    //for (int ix = 1; ix < N - 1; ++ix) {
+    //    
+    //    if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 100.0;
+    //    else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -100.0;
 
-    }
+    //}
 
     // Momentum source
     std::vector<double> Su(N, 0.0);
@@ -451,7 +451,7 @@ int main() {
     std::vector<double> mu_t(N, 0.0);
 
     // Models
-    const int rhie_chow_on_off = 1;                 // 0: no RC correction, 1: with RC correction
+    const int rhie_chow_on_off = 0;                 // 0: no RC correction, 1: with RC correction
     const int SST_model_turbulence_on_off = 0;      // 0: no turbulence, 1: with turbulence
 
     // The coefficient bVU is needed in momentum predictor loop and pressure correction to estimate the velocities aVT the faces using the Rhie and Chow correction
@@ -528,8 +528,8 @@ int main() {
                 const double F = 0.25 * f * rho_P * std::abs(u[i]) / r_inner;
 
                 aVU[i] = -std::max(F_l, 0.0) - D_l;
-                cVU[i] = std::max(-F_r, 0.0) - D_r; 
-                bVU[i] = (std::max(F_r, 0.0) - std::max(-F_l, 0.0)) + rho_P * dz / dt + D_l + D_r + F;
+                cVU[i] = -std::max(-F_r, 0.0) - D_r; 
+                bVU[i] = (std::max(F_r, 0.0) + std::max(-F_l, 0.0)) + rho_P * dz / dt + D_l + D_r + F;
                 dVU[i] = -0.5 * (p[i + 1] - p[i - 1]) + rho_P * u[i] * dz / dt + Su[i] * dz;
 
                 printf("");
@@ -613,6 +613,8 @@ int main() {
 
                 p_prime = solveTridiagonal(aP, bP, cP, dP);
 
+                printf("");
+
                 #pragma endregion
 
                 // =======================================================================
@@ -641,6 +643,8 @@ int main() {
                 // Update density with new p,T, to get the density connected to the pressure field of timestep n+1
                 eos_update(rho, p, T);
 
+                printf("");
+
                 // =======================================================================
                 //
                 //                        [VELOCITY CORRECTOR]
@@ -659,6 +663,8 @@ int main() {
 
                 #pragma endregion
 
+
+                printf("");
 
             }
 
@@ -804,8 +810,8 @@ int main() {
             const double C_r = (Fr * cp_r);
 
             aVT[i] = -D_l - std::max(C_l, 0.0);
-            cVT[i] = -D_r + std::max(-C_r, 0.0);
-            bVT[i] = (std::max(C_r, 0.0) - std::max(-C_l, 0.0)) + D_l + D_r + rhoCp_dzdt;
+            cVT[i] = -D_r - std::max(-C_r, 0.0);
+            bVT[i] = (std::max(C_r, 0.0) + std::max(-C_l, 0.0)) + D_l + D_r + rhoCp_dzdt;
 
             const double pressure_work = (p[i] - p_old[i]) / dt;
             dVT[i] = rhoCp_dzdt * T_old[i] + pressure_work * dz + St[i] * dz;
