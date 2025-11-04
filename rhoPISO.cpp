@@ -9,11 +9,11 @@
 
 // =======================================================================
 //
-//                        [SOLVING ALGORITHMS]
+//                        [VARIOUS ALGORITHMS]
 //
 // =======================================================================
 
-#pragma region solver
+#pragma region various_algorithms
 
 // Solves a tridiagonal system Ax = d using the Thomas algorithm
 // a, b, c are the sub-diagonal, main diagonal, and super-diagonal of A
@@ -52,7 +52,7 @@ std::vector<double> linspace(double T_min, double T_max, int N) {
     return T;
 }
 
-// Adaptive time-step that calculates new time step as the smaller between: 
+// Adaptive VAPOR time-step that calculates new time step as the smaller between: 
 //      Convective-acoustic limit (CFL number)
 //      Mass source/sink limit (CS limit)
 //      Pressure correction (CP limit)
@@ -410,14 +410,14 @@ int main() {
 
     // Geometric parameters
     const double L = 1.0;                       // Length of the domain [m]
-    const int    N = 10;                       // Number of nodes [-]
+    const int    N = 10;                        // Number of nodes [-]
     const double dz = L / N;                    // Grid spacing [m]
     const double D_pipe = 0.1;                  // Pipe diameter [m], used only to estimate Reynolds number
 
     // Time-stepping parameters
-    double dt = 0.0001;                                // Timestep [s]
-    const double t_max = 5.0;                               // Time interval [s]
-    const int t_iter = (int)std::round(t_max / dt);         // Number of timesteps [-]
+    double dt = 0.0001;                                // Initial timestep [s] (then it is adjusted)
+    const double t_max = 5.0;                          // Time interval [s]
+    const int t_iter = (int)std::round(t_max / dt);    // Number of timesteps [-]
 
     // PISO parameters
     const int tot_outer_iter = 10000;                   // Outer iterations per time-step [-]
@@ -427,8 +427,8 @@ int main() {
 
     // Physical properties
     const double Rv = 361.8;                    // Gas constant for the sodium vapor [J/(kg K)]
-    const double gamma = 1.35;
-    const double T_init = 1000;
+    const double gamma = 1.35;                  // Ratio between s. h. at cp and s. h. at cv [-]
+    const double T_init = 1000;                 // Initial temperature [K]
 
     // Fields
     std::vector<double> u(N, 0.01), p(N, 50000.0), T(N, T_init), rho(N, 0.5);        // Collocated grid, values in center-cell
@@ -690,10 +690,24 @@ int main() {
                 u_error = 0.0;
                 for (int i = 1; i < N - 1; i++) {
 
-                    double u_prev = u[i];
-                    u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dz * bVU[i]);
+                    const double u_prev_v = u[i];
+                    const double sonic_limit = std::sqrt(gamma * Rv * T[i]);
 
-                    u_error = std::max(u_error, std::fabs(u[i] - u_prev));
+                    const double calc_velocity = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dz * bVU[i]);
+
+                    if (calc_velocity < sonic_limit) {
+
+                        u[i] = calc_velocity;
+
+                    }
+                    else {
+
+                        std::cout << "Sonic limit reached, limiting velocity" << "\n";
+                        u[i] = sonic_limit;
+
+                    }
+
+                    u_error = std::max(u_error, std::fabs(u[i] - u_prev_v));
                 }
 
                 #pragma endregion
