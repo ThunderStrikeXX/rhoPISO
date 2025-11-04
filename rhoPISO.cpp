@@ -454,19 +454,7 @@ int main() {
     // Mass source and sink definitions
     std::vector<double> Sm(N, 0.0);
 
-    const double mass_source_zone = 0.2;
-    const double mass_sink_zone = 0.2;
-
-    const double mass_source_nodes = std::floor(N * mass_source_zone);
-    const double mass_sink_nodes = std::floor(N * mass_sink_zone);
-
     Sm = linspace(10.0, -10.0, N);
-
-    //for (int ix = 1; ix < N - 1; ++ix) {
-    //    
-    //    if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 100.0;
-    //    else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -100.0;
-    //}
 
     // Momentum source
     std::vector<double> Su(N, 0.0);
@@ -474,17 +462,7 @@ int main() {
     // Energy source
     std::vector<double> St(N, 0.0);
 
-    const double energy_source_zone = 0.2;
-    const double energy_sink_zone = 0.2;
-
-    const double energy_source_nodes = std::floor(N * energy_source_zone);
-    const double energy_sink_nodes = std::floor(N * energy_sink_zone);
-
-    for (int ix = 1; ix < N - 1; ++ix) {
-
-        if (ix > 0 && ix <= energy_source_nodes) St[ix] = 0.0;
-        else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = 0.0;
-    }
+    St = linspace(50000000.0, -50000000.0, N);
 
     // Turbulence constants for sodium vapor (SST model)
     const double I = 0.05;                              // Turbulence intensity (5%)
