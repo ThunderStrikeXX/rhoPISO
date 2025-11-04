@@ -52,6 +52,56 @@ std::vector<double> linspace(double T_min, double T_max, int N) {
     return T;
 }
 
+// Adaptive time-step that calculates new time step as the smaller between: 
+//      Convective-acoustic limit (CFL number)
+//      Mass source/sink limit (CS limit)
+//      Pressure correction (CP limit)
+double new_dt(double dz, double dt_old,
+    const std::vector<double>& u,
+    const std::vector<double>& T,
+    const std::vector<double>& rho,
+    const std::vector<double>& Sm,
+    const std::vector<double>& bVU) {
+
+    const double gamma = 1.32;                               // Vapor sodium gas constant [-]
+    const double Rv = 361.8;                                 // Gas constant for the sodium vapor [J/(kg K)]
+    const double CFL = 0.5, CS = 0.5, CP = 0.5;   // Limit coefficients
+    const double epsS = 1e-12, theta = 0.9, rdown = 0.2;
+    const double dt_min = 1e-12, dt_max = 1e3;
+
+    int N = u.size();
+    auto invb = [&](int i) { return 1.0 / std::max(bVU[i], 1e-30); };
+
+    double dtcand = dt_max;
+    for (int i = 0; i < N; ++i) {
+        double a = std::sqrt(gamma * Rv * T[i]);
+        double dt_c = CFL * dz / (std::abs(u[i]) + a);
+
+        // se diffusivo: definisci nu[i], altrimenti salta
+        double dt_d = 1e99; // o CD * dz*dz / nu[i];
+
+        double dt_s = CS * rho[i] / (std::abs(Sm[i]) + epsS);
+
+        // coeff facciali per p' (servono i vicini interni)
+        double dt_p = 1e99;
+        if (i > 0 && i < N - 1) {
+            double invbL = 0.5 * (invb(i - 1) + invb(i));
+            double invbR = 0.5 * (invb(i) + invb(i + 1));
+            double rhoL = 0.5 * (rho[i - 1] + rho[i]);
+            double rhoR = 0.5 * (rho[i] + rho[i + 1]);
+            double El = rhoL * invbL / dz;
+            double Er = rhoR * invbR / dz;
+            double psi = 1.0 / (Rv * T[i]);
+            dt_p = CP * psi * dz / (El + Er + 1e-30);
+        }
+
+        double dti = std::min(std::min(dt_c, dt_d), std::min(dt_s, dt_p));
+        dtcand = std::min(dtcand, dti);
+    }
+
+    double dt_new = std::min(dt_max, std::max(dt_min, std::max(theta * dtcand, rdown * dt_old)));
+    return dt_new;
+}
 
 #pragma endregion
 
@@ -357,23 +407,24 @@ int main() {
 
     // Geometric parameters
     const double L = 1.0;                       // Length of the domain [m]
-    const int    N = 1000;                       // Number of nodes [-]
+    const int    N = 100;                       // Number of nodes [-]
     const double dz = L / N;                    // Grid spacing [m]
     const double D_pipe = 0.1;                  // Pipe diameter [m], used only to estimate Reynolds number
 
     // Time-stepping parameters
-    const double dt = 0.001;                                // Timestep [s]
+    double dt = 0.0001;                                // Timestep [s]
     const double t_max = 5.0;                               // Time interval [s]
     const int t_iter = (int)std::round(t_max / dt);         // Number of timesteps [-]
 
     // PISO parameters
     const int tot_outer_iter = 10000;                   // Outer iterations per time-step [-]
-    const int tot_inner_iter = 50;                      // Inner iterations per outer iteration [-]
-    const double outer_tol = 1e-8;                    // Tolerance for the inner iterations [-]
-    const double inner_tol = 1e-2;                    // Tolerance for the inner iterations [-]
+    const int tot_inner_iter = 500;                      // Inner iterations per outer iteration [-]
+    const double outer_tol = 1e-6;                    // Tolerance for the inner iterations [-]
+    const double inner_tol = 1e-4;                    // Tolerance for the inner iterations [-]
 
     // Physical properties
     const double Rv = 361.8;                    // Gas constant for the sodium vapor [J/(kg K)]
+    const double gamma = 1.35;
     const double T_init = 1000;
 
     // Fields
@@ -406,13 +457,12 @@ int main() {
     const double mass_source_nodes = std::floor(N * mass_source_zone);
     const double mass_sink_nodes = std::floor(N * mass_sink_zone);
 
-    Sm = linspace(10000.0, -10000.0, N);
+    Sm = linspace(10.0, -10.0, N);
 
     //for (int ix = 1; ix < N - 1; ++ix) {
     //    
     //    if (ix > 0 && ix <= mass_source_nodes) Sm[ix] = 100.0;
     //    else if (ix >= (N - mass_sink_nodes) && ix < (N - 1)) Sm[ix] = -100.0;
-
     //}
 
     // Momentum source
@@ -431,7 +481,6 @@ int main() {
 
         if (ix > 0 && ix <= energy_source_nodes) St[ix] = 0.0;
         else if (ix >= (N - energy_sink_nodes) && ix < (N - 1)) St[ix] = 0.0;
-
     }
 
     // Turbulence constants for sodium vapor (SST model)
@@ -468,6 +517,8 @@ int main() {
 
     for (double it = 0; it < t_iter; it++) {
 
+        dt = new_dt(dz, dt, u, T, rho, Sm, bVU);
+
         const double max_u = *std::max_element(u.begin(), u.end());
         const double max_rho = *std::max_element(rho.begin(), rho.end());
         const double min_T = *std::min_element(T.begin(), T.end());
@@ -486,8 +537,8 @@ int main() {
         int outer_iter = 0;
 
         // Inner iterations
-        double p_error = 1.0;
-        int inner_iter = 0;
+        double p_error;
+        int inner_iter;
 
         while (outer_iter < tot_outer_iter && u_error > outer_tol) {
 
@@ -564,7 +615,11 @@ int main() {
 
             #pragma endregion
 
-            while (inner_iter < tot_inner_iter && p_error > outer_tol) {
+            // Inner iterations
+            p_error = 1.0;
+            inner_iter = 0;
+
+            while (inner_iter < tot_inner_iter && p_error > inner_tol) {
 
                 // =======================================================================
                 //
@@ -638,7 +693,6 @@ int main() {
                     p_storage[i + 1] = p[i];
 
                     p_error = std::max(p_error, std::fabs(p[i] - p_prev));
-
                 }
 
                 p_storage[0] = p_storage[1];
