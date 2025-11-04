@@ -357,7 +357,7 @@ int main() {
 
     // Geometric parameters
     const double L = 1.0;                       // Length of the domain [m]
-    const int    N = 100;                       // Number of nodes [-]
+    const int    N = 1000;                       // Number of nodes [-]
     const double dz = L / N;                    // Grid spacing [m]
     const double D_pipe = 0.1;                  // Pipe diameter [m], used only to estimate Reynolds number
 
@@ -367,9 +367,10 @@ int main() {
     const int t_iter = (int)std::round(t_max / dt);         // Number of timesteps [-]
 
     // PISO parameters
-    const int tot_iter = 100000;                   // Inner iterations per step [-]
-    const int corr_iter = 2;                    // PISO correctors per iteration [-]
-    const double tol = 1e-8;                    // Tolerance for the inner iterations [-]
+    const int tot_outer_iter = 10000;                   // Outer iterations per time-step [-]
+    const int tot_inner_iter = 50;                      // Inner iterations per outer iteration [-]
+    const double outer_tol = 1e-8;                    // Tolerance for the inner iterations [-]
+    const double inner_tol = 1e-2;                    // Tolerance for the inner iterations [-]
 
     // Physical properties
     const double Rv = 361.8;                    // Gas constant for the sodium vapor [J/(kg K)]
@@ -405,7 +406,7 @@ int main() {
     const double mass_source_nodes = std::floor(N * mass_source_zone);
     const double mass_sink_nodes = std::floor(N * mass_sink_zone);
 
-    Sm = linspace(1000.0, -1000.0, N);
+    Sm = linspace(10000.0, -10000.0, N);
 
     //for (int ix = 1; ix < N - 1; ++ix) {
     //    
@@ -451,7 +452,7 @@ int main() {
     std::vector<double> mu_t(N, 0.0);
 
     // Models
-    const int rhie_chow_on_off = 0;                 // 0: no RC correction, 1: with RC correction
+    const int rhie_chow_on_off = 1;                 // 0: no RC correction, 1: with RC correction
     const int SST_model_turbulence_on_off = 0;      // 0: no turbulence, 1: with turbulence
 
     // The coefficient bVU is needed in momentum predictor loop and pressure correction to estimate the velocities aVT the faces using the Rhie and Chow correction
@@ -480,11 +481,15 @@ int main() {
         rho_old = rho;
         p_old = p;
 
-        // PISO iterations
-        double maxErr = 1.0;
-        int iter = 0;
+        // Outer iterations
+        double u_error = 1.0;
+        int outer_iter = 0;
 
-        while (iter<tot_iter && maxErr>tol) {
+        // Inner iterations
+        double p_error = 1.0;
+        int inner_iter = 0;
+
+        while (outer_iter < tot_outer_iter && u_error > outer_tol) {
 
             // =======================================================================
             //
@@ -559,7 +564,7 @@ int main() {
 
             #pragma endregion
 
-            for (int piso = 0; piso < corr_iter; piso++) {
+            while (inner_iter < tot_inner_iter && p_error > outer_tol) {
 
                 // =======================================================================
                 //
@@ -625,10 +630,14 @@ int main() {
 
                 #pragma region pressure_corrector
 
+                p_error = 0.0;
                 for (int i = 0; i < N; i++) {
 
+                    double p_prev = p[i];
                     p[i] += p_prime[i]; // Note that PISO does not require an under-relaxation factor
                     p_storage[i + 1] = p[i];
+
+                    p_error = std::max(p_error, std::fabs(p[i] - p_prev));
 
                 }
 
@@ -653,22 +662,24 @@ int main() {
 
                 #pragma region velocity_corrector
 
-                maxErr = 0.0;
+                u_error = 0.0;
                 for (int i = 1; i < N - 1; i++) {
 
                     double u_prev = u[i];
                     u[i] = u[i] - (p_prime[i + 1] - p_prime[i - 1]) / (2.0 * dz * bVU[i]);
-                    maxErr = std::max(maxErr, std::fabs(u[i] - u_prev));
+
+                    u_error = std::max(u_error, std::fabs(u[i] - u_prev));
                 }
 
                 #pragma endregion
 
+                inner_iter++;
 
                 printf("");
 
             }
 
-            iter++;
+            outer_iter++;
         }
 
         printf("");
