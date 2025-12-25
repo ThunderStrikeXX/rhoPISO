@@ -42,7 +42,7 @@ constexpr double L = 1.0;
 constexpr double dz = L / N;
 constexpr double dt = 1e-3;
 
-constexpr int tot_time_steps = 1000;
+constexpr int tot_time_steps = 10000;
 
 constexpr int tot_outer_v = 100;
 constexpr int tot_inner_v = 100;
@@ -57,7 +57,7 @@ constexpr double rhie_chow_on_off_v = 1.0;
 // =======================================================================
 
 std::vector<double>
-    u_v(N, 1.0),
+    u_v(N, 0.0),
     u_v_old = u_v,
     T_v_bulk(N, 700.0),
     T_v_bulk_old = T_v_bulk,
@@ -78,10 +78,13 @@ constexpr double z_evap_end = 0.3;      // [m]
 constexpr double z_cond_start = 0.7;    // [m]
 constexpr double z_cond_end = 1.0;      // [m]
 
-constexpr double Q_tot = 10;            // total heat input [W/m3]
-const double m_dot = 0.001;          // [kg/m3s]
+constexpr double Q_tot = 0.0;          // [W/m3]
+constexpr double m_dot = 0.0;          // [kg/m3s]
 
-const double Rv = 361.5;                /// Gas constant for the sodium vapor [J/(kg K)]
+// constexpr double Q_tot = 7e3;       // [W/m3]
+// constexpr double m_dot = 0.01;      // [kg/m3s]
+
+const double Rv = 361.5;
 const double mu = 1e-5;
 const double k = 0.01;
 const double cp = 1000;
@@ -123,11 +126,11 @@ int main() {
 
         const double z = i * dz;
 
-        if (z >= z_evap_start && z <= z_evap_end) {
+        if (z >= z_evap_start && z < z_evap_end) {
             Q[i] = Q_tot;
             Gamma[i] = m_dot;
         }
-        else if (z >= z_cond_start && z <= z_cond_end) {
+        else if (z > z_cond_start && z <= z_cond_end) {
             Q[i] = -Q_tot;
             Gamma[i] = -m_dot;
         }
@@ -359,9 +362,8 @@ int main() {
 
         for (int i = 1; i < N - 1; i++) {
 
-            /// Diffusion coefficient [W/(m^2 K)] (average)
-            const double D_l = k / dz;
-            const double D_r = k / dz;
+            const double D_l = k / dz;      /// [W/(m2 K)]
+            const double D_r = k / dz;      /// [W/(m2 K)]
 
             const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
             const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
@@ -380,16 +382,16 @@ int main() {
             const double Fl = rho_l * u_l_face;         // [kg/m2s]
             const double Fr = rho_r * u_r_face;         // [kg/m2s]
     
-            const double C_l = (Fl * cp);               // [W / (m ^ 2 K)]
-            const double C_r = (Fr * cp);               // [W / (m ^ 2 K)]
+            const double C_l = (Fl * cp);               // [W/(m2K)]
+            const double C_r = (Fr * cp);               // [W/(m2K)]
 
-            const double dpdz_up = u_v[i] * (p_v[i + 1] - p_v[i - 1]) / (2.0 * dz);
+            const double dpdz_up = u_v[i] * (p_v[i + 1] - p_v[i - 1]) / 2.0;
 
-            const double dp_dt = (p_v[i] - p_v_old[i]) / dt;
+            const double dp_dt = (p_v[i] - p_v_old[i]) / dt * dz;
 
             const double viscous_dissipation =
-                0.5 * mu * ((u_v[i + 1] - u_v[i]) * (u_v[i + 1] - u_v[i])
-                    + (u_v[i] + u_v[i - 1]) * (u_v[i] + u_v[i - 1])) / (dz * dz);
+                4.0 / 3.0 * 0.25 * mu * ((u_v[i + 1] - u_v[i]) * (u_v[i + 1] - u_v[i])
+                    + (u_v[i] + u_v[i - 1]) * (u_v[i] + u_v[i - 1])) / dz;
 
             aVT[i] =
                 - D_l
@@ -400,15 +402,15 @@ int main() {
                 - std::max(-C_r, 0.0);                  /// [W/(m2 K)]
 
             bVT[i] =
-                +(std::max(C_r, 0.0) + std::max(-C_l, 0.0))
+                + (std::max(C_r, 0.0) + std::max(-C_l, 0.0))
                 + D_l + D_r
                 + rho_v[i] * cp * dz / dt;              /// [W/(m2 K)]
 
             dVT[i] =
                 + rho_v_old[i] * cp * dz / dt * T_v_bulk_old[i]
-                + dp_dt * dz
-                + dpdz_up * dt
-                + viscous_dissipation * dz
+                + dp_dt
+                + dpdz_up
+                + viscous_dissipation
                 + Q[i] * dz;                            /// [W/m2]
         }
 
