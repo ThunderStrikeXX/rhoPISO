@@ -6,12 +6,8 @@ L = 1.0
 dt_user = 1e-3
 simulation_time = 1.0
 
-# ---------------- PICARD --------------
-picard_max_iter = 100
-picard_tol = 1e-8
-
 # ---------------- PISO ----------------
-piso_outer_iter = 200
+piso_outer_iter = 100
 piso_inner_iter = 100
 piso_outer_tol = 1e-8
 piso_inner_tol = 1e-8
