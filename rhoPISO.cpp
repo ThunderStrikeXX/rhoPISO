@@ -7,6 +7,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <filesystem>
+#include <omp.h>
 
 #include "tdma.h"
 
@@ -64,9 +65,9 @@ struct Input {
     bool   rhie_chow_on_off_v = true;       // Rhie–Chow on/off [-]
 
     double mu = 0.0;                        // Dynamic viscosity [kg/(m s)]
-	double Rv = 0.0;                      // Specific gas constant for water vapor [J/(kg K)]
+	double Rv = 0.0;                        // Specific gas constant for water vapor [J/(kg K)]
 	double k = 0.0;                         // Thermal conductivity [W/(m K)]
-	double cp = 0.0;                     // Specific heat capacity at constant pressure [J/(kg K)]
+	double cp = 0.0;                        // Specific heat capacity at constant pressure [J/(kg K)]
 
     double S_m_cell = 0.0;                  // Volumetric mass source [kg/(m3 s)]
     double S_h_cell = 0.0;                  // Volumetric heat source [W/m3]
@@ -99,7 +100,7 @@ struct Input {
     double T_initial = 0.0;                 // [K]
 	double rho_initial = 0.0;               // [kg/m3]
 
-    int number_output = 0;            // Number of outputs [-]
+    int number_output = 0;                  // Number of outputs [-]
 
     std::string velocity_file = "";
     std::string pressure_file = "";
@@ -347,8 +348,20 @@ int main() {
     std::ofstream T_out(outputDir / in.temperature_file);           // Temperature output file
 	std::ofstream rho_out(outputDir / in.density_file);             // Density output file
 
-    int inner_v;
-    int outer_v;
+    // Convergence metrics
+    double continuity_residual = 1.0;
+    double momentum_residual = 1.0;
+
+    double u_error_v = 1.0;
+    int outer_v = 0;
+
+    double p_error_v = 1.0;
+    double rho_error_v = 1.0;
+    int inner_v = 0;
+
+    for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+
+    double start = omp_get_wtime();
 
 	// Time-stepping loop
     for (int n = 0; n <= time_steps; ++n) {
@@ -357,6 +370,7 @@ int main() {
         u_v_old = u_v;
         T_v_old = T_v;
         p_v_old = p_v;
+        rho_v_old = rho_v;
 
         dt = std::max(dt_user * pow(0.5, halves), 1e-7);    // Adjust time step if Picard did not converge in previous step
 
@@ -366,10 +380,12 @@ int main() {
             // Iter = new for Picard
             T_v_iter = T_v;
 
-            double u_error_v = 1.0;
+            u_error_v = 1.0;
             outer_v = 0;
 
-            while (outer_v < tot_outer_v && u_error_v > outer_tol_v) {
+            momentum_residual = 1.0;
+
+            while (outer_v < tot_outer_v && momentum_residual > outer_tol_v) {
 
                 // ===========================================================
                 // MOMENTUM PREDICTOR
@@ -458,12 +474,13 @@ int main() {
 
                 u_v = tdma::solve(aVU, bVU, cVU, dVU);
 
-                double p_error_v = 1.0;
+                rho_error_v = 1.0;
+                p_error_v = 1.0;
                 inner_v = 0;
 
-                double rho_error_v = 1.0;
+                continuity_residual = 1.0;
 
-                while (inner_v < tot_inner_v && p_error_v > inner_tol_v) {
+                while (inner_v < tot_inner_v && continuity_residual > inner_tol_v) {
 
                     // -------------------------------------------------------
                     // CONTINUITY SATISFACTOR: assemble pressure correction
@@ -578,12 +595,12 @@ int main() {
                         p_storage_v[0] = p_storage_v[1];
                     }
 
-                    if (p_inlet_bc == 0) {                              // Dirichlet BC
+                    if (p_outlet_bc == 0) {                              // Dirichlet BC
 
 						p_v[N - 1] = p_outlet_value;
                         p_storage_v[N + 1] = p_outlet_value;
                     }
-                    else if (u_inlet_bc == 1) {                         // Neumann BC
+                    else if (p_outlet_bc == 1) {                         // Neumann BC
 
 						p_v[N - 1] = p_v[N - 2];
                         p_storage_v[N + 1] = p_storage_v[N];
@@ -613,7 +630,27 @@ int main() {
                         rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                     }
 
+                    // -------------------------------------------------------
+                    // CONTINUITY RESIDUAL CALCULATION
+                    // -------------------------------------------------------
+
+                    continuity_residual = 0.0;
+
+                    for (int i = 1; i < N - 1; ++i) {
+                        continuity_residual = std::max(continuity_residual, std::fabs(dVP[i]));
+                    }
+
                     inner_v++;
+                }
+
+                // -------------------------------------------------------
+                // MOMENTUM RESIDUAL CALCULATION
+                // -------------------------------------------------------
+
+                momentum_residual = 0.0;
+
+                for (int i = 1; i < N - 1; ++i) {
+                    momentum_residual = std::max(momentum_residual, std::fabs(aVU[i] * u_v[i - 1] + bVU[i] * u_v[i] + cVU[i] * u_v[i + 1] - dVU[i]));
                 }
 
                 outer_v++;
@@ -659,17 +696,17 @@ int main() {
 
                 aVT[i] =
                     - D_v
-                    - std::max(C_l, 0.0);              /// [W/(m2K)]
+                    - std::max(C_l, 0.0);               /// [W/(m2K)]
 
                 cVT[i] =
                     - D_r
-                    - std::max(-C_r, 0.0);             /// [W/(m2K)]
+                    - std::max(-C_r, 0.0);              /// [W/(m2K)]
 
                 bVT[i] =
                     + std::max(C_r, 0.0)
                     + std::max(-C_l, 0.0)
                     + D_v + D_r
-                    + rho_v[i] * cp * dz / dt;                     /// [W/(m2 K)]
+                    + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
                     + rho_v_old[i] * cp * dz / dt * T_v_old[i]
@@ -680,14 +717,14 @@ int main() {
             }
 
 			// BCs on temperature
-            if (T_inlet_bc == 0) {                          // Dirichlet BC
+            if (T_inlet_bc == 0) {                      // Dirichlet BC
 
                 aVT[0] = 0.0;
                 bVT[0] = 1.0;
                 cVT[0] = 0.0;
                 dVT[0] = T_inlet_value;
             }
-            else if (T_inlet_bc == 1) {                     // Neumann BC
+            else if (T_inlet_bc == 1) {                 // Neumann BC
 
                 aVT[0] = 0.0;
                 bVT[0] = 1.0;
@@ -695,14 +732,14 @@ int main() {
                 dVT[0] = 0.0;
             }
 
-            if (T_outlet_bc == 0) {                         // Dirichlet BC
+            if (T_outlet_bc == 0) {                     // Dirichlet BC
 
                 aVT[N - 1] = 0.0;
                 bVT[N - 1] = 1.0;
                 cVT[N - 1] = 0.0;
                 dVT[N - 1] = T_outlet_value;
             }
-            else if (T_outlet_bc == 1) {                    // Neumann BC
+            else if (T_outlet_bc == 1) {                // Neumann BC
 
                 aVT[N - 1] = -1.0;
                 bVT[N - 1] = 1.0;
@@ -791,6 +828,9 @@ int main() {
     p_out.close();
     T_out.close();
 	rho_out.close();
+
+    double end = omp_get_wtime();
+    printf("Execution time: %.6f s\n", end - start);
 
     return 0;
 }
