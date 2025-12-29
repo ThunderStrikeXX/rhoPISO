@@ -157,9 +157,6 @@ Input readInput(const std::string& filename) {
     in.dt_user = std::stod(dict["dt_user"]);
     in.simulation_time = std::stod(dict["simulation_time"]);
 
-    in.picard_max_iter = std::stoi(dict["picard_max_iter"]);
-    in.picard_tol = std::stod(dict["picard_tol"]);
-
     in.piso_outer_iter = std::stoi(dict["piso_outer_iter"]);
     in.piso_inner_iter = std::stoi(dict["piso_inner_iter"]);
     in.piso_outer_tol = std::stod(dict["piso_outer_tol"]);
@@ -244,10 +241,7 @@ int main() {
 	const double inner_tol_v = in.piso_inner_tol;                       // PISO inner tolerance [-]
 	const bool rhie_chow_on_off_v = in.rhie_chow_on_off_v;              // Rhie–Chow interpolation on/off (1/0) [-]
 
-	int halves = 0;                                                     // Number of halvings of the time step [-]
-	double L1 = 0.0;                                                    // Picard error [-]
     double dt = dt_user;                                                // Time step [s]
-    int pic = 0;                                                        // Picard iteration counter [-]
 
 	const double mu = in.mu;                                            // Dynamic viscosity [kg/(m s)]
 	const double Rv = in.Rv;                                            // Specific gas constant for water vapor [J/(kg K)]
@@ -263,8 +257,6 @@ int main() {
 	std::vector<double> T_v_old = T_v;                                  // Previous time step temperature [K]
 	std::vector<double> p_v_old = p_v;                                  // Previous time step pressure [Pa]
 	std::vector<double> rho_v_old = rho_v;                              // Previous time step density [kg/m3]
-
-	// std::vector<double> T_v_iter(N, 0.0);                               // Temperature field for Picard iteration [K]
 
 	std::vector<double> p_prime_v(N, 0.0);                              // Pressure correction [Pa]
 	std::vector<double> p_storage_v(N + 2, 0.0);                        // Padded pressure storage for Rhie–Chow [Pa]
@@ -367,14 +359,6 @@ int main() {
 
 	// Time-stepping loop
     for (int n = 0; n <= time_steps; ++n) {
-
-        dt = std::max(dt_user * pow(0.5, halves), 1e-7);    // Adjust time step if Picard did not converge in previous step
-
-        // Picard iteration loop
-        //for (pic = 0; pic < max_picard; ++pic) {
-
-        // Iter = new for Picard
-        // T_v_iter = T_v;
 
         u_error_v = 1.0;
         outer_v = 0;
@@ -766,58 +750,6 @@ int main() {
         p_v_old = p_v;
         rho_v_old = rho_v;
         T_v_old = T_v;
-
-        /*
-        // Calculate Picard error
-        L1 = 0.0;
-
-        double Aold, Anew, denom, eps;
-
-        for (int i = 0; i < N; ++i) {
-
-            Aold = T_v_iter[i];
-            Anew = T_v[i];
-            denom = 0.5 * (std::abs(Aold) + std::abs(Anew));
-            eps = denom > 1e-12 ? std::abs((Anew - Aold) / denom) : std::abs(Anew - Aold);
-            L1 += eps;
-        }
-
-        // Error normalization
-        L1 /= N;
-
-        if (L1 < pic_tolerance) {
-
-            halves = 0;             // Reset halves if Picard converged
-            break;                  // Picard converged
-        }
-        */
-        //}
-
-        /*
-        // Picard converged or max iterations reached
-        if (pic != max_picard) {
-
-            // Update old values
-            u_v_old = u_v;
-            T_v_old = T_v;
-            p_v_old = p_v;
-			rho_v_old = rho_v;
-
-            time_total += dt;
-
-        }
-        else {
-
-            // Rollback to previous time step (new = old) and halve dt
-            u_v = u_v_old;
-            T_v = T_v_old;
-            p_v = p_v_old;
-			rho_v = rho_v_old;
-
-            halves += 1;
-            n -= 1;
-        }
-        */
 
         // ===============================================================
         // OUTPUT
