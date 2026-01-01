@@ -46,7 +46,7 @@ std::string chooseInputFile(const std::string& inputDir) {
 
     return files[choice].string();  // path completo al file scelto
 }
-          
+
 struct Input {
 
     int    N = 0;                           // Number of cells [-]
@@ -65,9 +65,9 @@ struct Input {
     bool   rhie_chow_on_off_v = true;       // Rhie–Chow on/off [-]
 
     double mu = 0.0;                        // Dynamic viscosity [kg/(m s)]
-	double Rv = 0.0;                        // Specific gas constant for water vapor [J/(kg K)]
-	double k = 0.0;                         // Thermal conductivity [W/(m K)]
-	double cp = 0.0;                        // Specific heat capacity at constant pressure [J/(kg K)]
+    double Rv = 0.0;                        // Specific gas constant for water vapor [J/(kg K)]
+    double k = 0.0;                         // Thermal conductivity [W/(m K)]
+    double cp = 0.0;                        // Specific heat capacity at constant pressure [J/(kg K)]
 
     double S_m_cell = 0.0;                  // Volumetric mass source [kg/(m3 s)]
     double S_h_cell = 0.0;                  // Volumetric heat source [W/m3]
@@ -98,7 +98,7 @@ struct Input {
     double u_initial = 0.0;                 // [m/s]
     double p_initial = 0.0;                 // [Pa]
     double T_initial = 0.0;                 // [K]
-	double rho_initial = 0.0;               // [kg/m3]
+    double rho_initial = 0.0;               // [kg/m3]
 
     int number_output = 0;                  // Number of outputs [-]
 
@@ -126,7 +126,7 @@ Input readInput(const std::string& filename) {
         if (comment != std::string::npos)
             line = line.substr(0, comment);
 
-		// Removes empty lines
+        // Removes empty lines
         if (line.find_first_not_of(" \t") == std::string::npos)
             continue;
 
@@ -164,9 +164,9 @@ Input readInput(const std::string& filename) {
     in.rhie_chow_on_off_v = std::stoi(dict["rhie_chow"]);
 
     in.mu = std::stod(dict["mu"]);
-	in.Rv = std::stod(dict["Rv"]);
-	in.k = std::stod(dict["k"]);
-	in.cp = std::stod(dict["cp"]);
+    in.Rv = std::stod(dict["Rv"]);
+    in.k = std::stod(dict["k"]);
+    in.cp = std::stod(dict["cp"]);
 
     in.S_m_cell = std::stod(dict["S_m_cell"]);
     in.S_h_cell = std::stod(dict["S_h_cell"]);
@@ -194,16 +194,16 @@ Input readInput(const std::string& filename) {
     in.p_outlet_bc = std::stoi(dict["p_outlet_bc"]);
     in.p_outlet_value = std::stod(dict["p_outlet_value"]);
 
-	in.u_initial = std::stod(dict["u_initial"]);
-	in.T_initial = std::stod(dict["T_initial"]);
+    in.u_initial = std::stod(dict["u_initial"]);
+    in.T_initial = std::stod(dict["T_initial"]);
     in.p_initial = std::stod(dict["p_initial"]);
-	in.rho_initial = std::stod(dict["rho_initial"]);
+    in.rho_initial = std::stod(dict["rho_initial"]);
 
     in.number_output = std::stoi(dict["number_output"]);
     in.velocity_file = dict["velocity_file"];
     in.pressure_file = dict["pressure_file"];
     in.temperature_file = dict["temperature_file"];
-	in.density_file = dict["density_file"];
+    in.density_file = dict["density_file"];
 
     return in;
 }
@@ -219,48 +219,48 @@ int main() {
 
     Input in = readInput(inputFile);
 
-	const int    N = in.N;                                              // Number of cells [-]
+    const int    N = in.N;                                              // Number of cells [-]
     const double L = in.L;                                              // Length of the domain [m]
-	const double dz = L / N;                                            // Cell size [m]
+    const double dz = L / N;                                            // Cell size [m]
 
-	double dt_user = in.dt_user;                                        // User-defined time step [s]
-	const double simulation_time = in.simulation_time;                  // Total simulation time [s]
-	const int time_steps = static_cast<int>(simulation_time / dt_user); // Number of time steps [-]
-        
-	const int number_output = in.number_output;                         // Number of outputs [-]
-	const int print_every = time_steps / number_output;                 // Print output every n time steps [-]
+    double dt_user = in.dt_user;                                        // User-defined time step [s]
+    const double simulation_time = in.simulation_time;                  // Total simulation time [s]
+    const int time_steps = static_cast<int>(simulation_time / dt_user); // Number of time steps [-]
 
-	double time_total = 0.0;                                            // Total simulation time [s]
+    const int number_output = in.number_output;                         // Number of outputs [-]
+    const int print_every = time_steps / number_output;                 // Print output every n time steps [-]
 
-	const int max_picard = in.picard_max_iter;                          // Maximum Picard iterations [-]
-	const double pic_tolerance = in.picard_tol;                         // Picard tolerance [-]
+    double time_total = 0.0;                                            // Total simulation time [s]
 
-	const int tot_outer_v = in.piso_outer_iter;                         // PISO outer iterations [-]
-	const int tot_inner_v = in.piso_inner_iter;                         // PISO inner iterations [-]
-	const double outer_tol_v = in.piso_outer_tol;                       // PISO outer tolerance [-]
-	const double inner_tol_v = in.piso_inner_tol;                       // PISO inner tolerance [-]
-	const bool rhie_chow_on_off_v = in.rhie_chow_on_off_v;              // Rhie–Chow interpolation on/off (1/0) [-]
+    const int max_picard = in.picard_max_iter;                          // Maximum Picard iterations [-]
+    const double pic_tolerance = in.picard_tol;                         // Picard tolerance [-]
+
+    const int tot_outer_v = in.piso_outer_iter;                         // PISO outer iterations [-]
+    const int tot_inner_v = in.piso_inner_iter;                         // PISO inner iterations [-]
+    const double outer_tol_v = in.piso_outer_tol;                       // PISO outer tolerance [-]
+    const double inner_tol_v = in.piso_inner_tol;                       // PISO inner tolerance [-]
+    const bool rhie_chow_on_off_v = in.rhie_chow_on_off_v;              // Rhie–Chow interpolation on/off (1/0) [-]
 
     double dt = dt_user;                                                // Time step [s]
 
-	const double mu = in.mu;                                            // Dynamic viscosity [kg/(m s)]
-	const double Rv = in.Rv;                                            // Specific gas constant for water vapor [J/(kg K)]
-	const double k = in.k;                                              // Thermal conductivity [W/(m K)]
-	const double cp = in.cp;                                            // Specific heat capacity at constant pressure [J/(kg K)]
+    const double mu = in.mu;                                            // Dynamic viscosity [kg/(m s)]
+    const double Rv = in.Rv;                                            // Specific gas constant for water vapor [J/(kg K)]
+    const double k = in.k;                                              // Thermal conductivity [W/(m K)]
+    const double cp = in.cp;                                            // Specific heat capacity at constant pressure [J/(kg K)]
 
-	std::vector<double> u_v(N, in.u_initial);                           // Velocity field [m/s]
-	std::vector<double> T_v(N, in.T_initial);                           // Temperature field [K]
-	std::vector<double> p_v(N, in.p_initial);                           // Pressure field [Pa]
-	std::vector<double> rho_v(N, in.rho_initial);                       // Density field [kg/m3]
+    std::vector<double> u_v(N, in.u_initial);                           // Velocity field [m/s]
+    std::vector<double> T_v(N, in.T_initial);                           // Temperature field [K]
+    std::vector<double> p_v(N, in.p_initial);                           // Pressure field [Pa]
+    std::vector<double> rho_v(N, in.rho_initial);                       // Density field [kg/m3]
 
-	std::vector<double> u_v_old = u_v;                                  // Previous time step velocity [m/s]
-	std::vector<double> T_v_old = T_v;                                  // Previous time step temperature [K]
-	std::vector<double> p_v_old = p_v;                                  // Previous time step pressure [Pa]
-	std::vector<double> rho_v_old = rho_v;                              // Previous time step density [kg/m3]
+    std::vector<double> u_v_old = u_v;                                  // Previous time step velocity [m/s]
+    std::vector<double> T_v_old = T_v;                                  // Previous time step temperature [K]
+    std::vector<double> p_v_old = p_v;                                  // Previous time step pressure [Pa]
+    std::vector<double> rho_v_old = rho_v;                              // Previous time step density [kg/m3]
 
-	std::vector<double> p_prime_v(N, 0.0);                              // Pressure correction [Pa]
-	std::vector<double> p_storage_v(N + 2, 0.0);                        // Padded pressure storage for Rhie–Chow [Pa]
-	double* p_padded_v = &p_storage_v[1];                               // Pointer to the real nodes of the padded pressure storage [Pa]
+    std::vector<double> p_prime_v(N, 0.0);                              // Pressure correction [Pa]
+    std::vector<double> p_storage_v(N + 2, 0.0);                        // Padded pressure storage for Rhie–Chow [Pa]
+    double* p_padded_v = &p_storage_v[1];                               // Pointer to the real nodes of the padded pressure storage [Pa]
 
     // p_storp_storage_vage_l initialization
     for (int i = 0; i < N; ++i)
@@ -269,15 +269,15 @@ int main() {
     p_storage_v[0] = p_v[0];
     p_storage_v[N + 1] = p_v[N - 1];
 
-	std::vector<double> u_prev(N, 0.0);                                 // Previous iteration velocity for convergence check [m/s]
-	std::vector<double> p_prev(N, 0.0);                                 // Previous iteration pressure for convergence check [Pa]
-	std::vector<double> rho_prev(N, 0.0);                               // Previous iteration density for convergence check [kg/m3]
+    std::vector<double> u_prev(N, 0.0);                                 // Previous iteration velocity for convergence check [m/s]
+    std::vector<double> p_prev(N, 0.0);                                 // Previous iteration pressure for convergence check [Pa]
+    std::vector<double> rho_prev(N, 0.0);                               // Previous iteration density for convergence check [kg/m3]
     std::vector<double> T_v_prev(N, 0.0);                               // Previous iteration temperature for convergence check [K]
 
-	std::vector<double> S_m(N, 0.0);                                    // Volumetric mass source [kg/(m3 s)]
-	std::vector<double> S_h(N, 0.0);                                    // Volumetric heat source [W/m3]
+    std::vector<double> S_m(N, 0.0);                                    // Volumetric mass source [kg/(m3 s)]
+    std::vector<double> S_h(N, 0.0);                                    // Volumetric heat source [W/m3]
 
-	// Source vectors definition
+    // Source vectors definition
     for (int i = 0; i < N; ++i) {
 
         const double z = (i + 0.5) * dz;
@@ -292,44 +292,44 @@ int main() {
         }
     }
 
-	const double u_inlet_value = in.u_inlet_value;          // Inlet velocity [m/s]
-	const double u_outlet_value = in.u_outlet_value;        // Outlet velocity [m/s]
-	const bool u_inlet_bc = in.u_inlet_bc;                  // Inlet velocity BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
-	const bool u_outlet_bc = in.u_outlet_bc;                // Outlet velocity BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
+    const double u_inlet_value = in.u_inlet_value;          // Inlet velocity [m/s]
+    const double u_outlet_value = in.u_outlet_value;        // Outlet velocity [m/s]
+    const bool u_inlet_bc = in.u_inlet_bc;                  // Inlet velocity BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
+    const bool u_outlet_bc = in.u_outlet_bc;                // Outlet velocity BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
 
-	const double T_inlet_value = in.T_inlet_value;          // Inlet temperature [K]
-	const double T_outlet_value = in.T_outlet_value;        // Outlet temperature [K]
-	const bool T_inlet_bc = in.T_inlet_bc;                  // Inlet temperature BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
-	const bool T_outlet_bc = in.T_outlet_bc;                // Outlet temperature BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
+    const double T_inlet_value = in.T_inlet_value;          // Inlet temperature [K]
+    const double T_outlet_value = in.T_outlet_value;        // Outlet temperature [K]
+    const bool T_inlet_bc = in.T_inlet_bc;                  // Inlet temperature BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
+    const bool T_outlet_bc = in.T_outlet_bc;                // Outlet temperature BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
 
-	const double p_inlet_value = in.p_inlet_value;          // Inlet pressure [Pa]
-	const double p_outlet_value = in.p_outlet_value;        // Outlet pressure [Pa]
-	const bool p_inlet_bc = in.p_inlet_bc;                  // Inlet pressure BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
-	const bool p_outlet_bc = in.p_outlet_bc;                // Outlet pressure BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
+    const double p_inlet_value = in.p_inlet_value;          // Inlet pressure [Pa]
+    const double p_outlet_value = in.p_outlet_value;        // Outlet pressure [Pa]
+    const bool p_inlet_bc = in.p_inlet_bc;                  // Inlet pressure BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
+    const bool p_outlet_bc = in.p_outlet_bc;                // Outlet pressure BC type (Dirichlet: 0.0, Neumann: 1.0) [-]
 
-	const double z_evap_start = in.z_evap_start;                        // Evaporation zone start and end [m]
-	const double z_evap_end = in.z_evap_end;                            // Evaporation zone start and end [m]
+    const double z_evap_start = in.z_evap_start;                        // Evaporation zone start and end [m]
+    const double z_evap_end = in.z_evap_end;                            // Evaporation zone start and end [m]
 
-	const double z_cond_start = in.z_cond_start;                        // Evaporation zone start and end [m]
-	const double z_cond_end = in.z_cond_end;                            // Condensation zone start and end [m]
+    const double z_cond_start = in.z_cond_start;                        // Evaporation zone start and end [m]
+    const double z_cond_end = in.z_cond_end;                            // Condensation zone start and end [m]
 
-	const double L_evap = z_evap_end - z_evap_start;                    // Length of the evaporation zone [m]
-	const double L_cond = z_cond_end - z_cond_start;                    // Length of the condensation zone [m]
+    const double L_evap = z_evap_end - z_evap_start;                    // Length of the evaporation zone [m]
+    const double L_cond = z_cond_end - z_cond_start;                    // Length of the condensation zone [m]
 
     std::vector<double> aVU(N, 0.0);                                    // Lower tridiagonal coefficient for velocity
     std::vector<double> bVU(N, rho_v[0] * dz / dt_user + 2 * mu / dz);  // Central tridiagonal coefficient for velocity
     std::vector<double> cVU(N, 0.0);                                    // Upper tridiagonal coefficient for velocity
     std::vector<double> dVU(N, 0.0);                                    // Known vector coefficient for velocity
 
-	std::vector<double> aVP(N, 0.0);                                    // Lower tridiagonal coefficient for pressure
-	std::vector<double> bVP(N, 0.0);                                    // Central tridiagonal coefficient for pressure
-	std::vector<double> cVP(N, 0.0);                                    // Upper tridiagonal coefficient for pressure
-	std::vector<double> dVP(N, 0.0);                                    // Known vector coefficient for pressure
+    std::vector<double> aVP(N, 0.0);                                    // Lower tridiagonal coefficient for pressure
+    std::vector<double> bVP(N, 0.0);                                    // Central tridiagonal coefficient for pressure
+    std::vector<double> cVP(N, 0.0);                                    // Upper tridiagonal coefficient for pressure
+    std::vector<double> dVP(N, 0.0);                                    // Known vector coefficient for pressure
 
-	std::vector<double> aVT(N, 0.0);                                    // Lower tridiagonal coefficient for temperature
-	std::vector<double> bVT(N, 0.0);                                    // Central tridiagonal coefficient for temperature
-	std::vector<double> cVT(N, 0.0);                                    // Upper tridiagonal coefficient for temperature
-	std::vector<double> dVT(N, 0.0);                                    // Known vector coefficient for temperature
+    std::vector<double> aVT(N, 0.0);                                    // Lower tridiagonal coefficient for temperature
+    std::vector<double> bVT(N, 0.0);                                    // Central tridiagonal coefficient for temperature
+    std::vector<double> cVT(N, 0.0);                                    // Upper tridiagonal coefficient for temperature
+    std::vector<double> dVT(N, 0.0);                                    // Known vector coefficient for temperature
 
     fs::path inputPath(inputFile);
     std::string caseName = inputPath.filename().string();
@@ -339,7 +339,7 @@ int main() {
     std::ofstream v_out(outputDir / in.velocity_file);              // Velocity output file
     std::ofstream p_out(outputDir / in.pressure_file);              // Pressure output file
     std::ofstream T_out(outputDir / in.temperature_file);           // Temperature output file
-	std::ofstream rho_out(outputDir / in.density_file);             // Density output file
+    std::ofstream rho_out(outputDir / in.density_file);             // Density output file
 
     // Convergence metrics
     double continuity_residual = 1.0;
@@ -357,7 +357,7 @@ int main() {
 
     double start = omp_get_wtime();
 
-	// Time-stepping loop
+    // Time-stepping loop
     for (int n = 0; n <= time_steps; ++n) {
 
         u_error_v = 1.0;
@@ -365,6 +365,9 @@ int main() {
 
         momentum_residual = 1.0;
         temperature_residual = 1.0;
+
+        /*
+        std::vector<double> rho_new = rho_v;
 
         for (int i = 1; i < N - 1; ++i) {
 
@@ -377,13 +380,16 @@ int main() {
             const double phi_l = rho_l * u_l_face;   // kg/m2/s
             const double phi_r = rho_r * u_r_face;   // kg/m2/s
 
-            rho_v[i] =
+            rho_new[i] =
                 rho_v_old[i]
                 - (dt / dz) * (phi_r - phi_l)
                 + dt * S_m[i];
         }
 
-        while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 1000)) {
+        rho_v = rho_new;
+        */
+
+        while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 100)) {
 
             // ===========================================================
             // MOMENTUM PREDICTOR
@@ -415,21 +421,19 @@ int main() {
                 const double F_r = rho_r * u_r_face; // [kg/(m2s)]
 
                 aVU[i] =
-                    - std::max(F_l, 0.0)
+                    -std::max(F_l, 0.0)
                     - D_l;                                  // [kg/(m2s)]
                 cVU[i] =
-                    - std::max(-F_r, 0.0)
+                    -std::max(-F_r, 0.0)
                     - D_r;                                  // [kg/(m2s)]
                 bVU[i] =
-                    + std::max(F_r, 0.0)
+                    +std::max(F_r, 0.0)
                     + std::max(-F_l, 0.0)
-                    + rho_v[i] * dz / dt
-                    + D_l + D_r
-                    ;                            // [kg/(m2s)]
+                    + rho_v_old[i] * dz / dt
+                    + D_l + D_r;                            // [kg/(m2s)]
                 dVU[i] =
-                    - 0.5 * (p_v[i + 1] - p_v[i - 1])
-                    + rho_v_old[i] * u_v_old[i] * dz / dt
-                    ;  // [kg/(ms2)]
+                    -0.5 * (p_v[i + 1] - p_v[i - 1])
+                    + rho_v_old[i] * u_v_old[i] * dz / dt;  // [kg/(ms2)]
             }
 
             /// Diffusion coefficients for the first and last node to define BCs
@@ -446,28 +450,28 @@ int main() {
             const double rho_l_last = (u_l_face_last >= 0) ? rho_v[N - 2] : rho_v[N - 1];
             const double F_l_last = rho_l_last * u_l_face_last;
 
-			if (u_inlet_bc == 0) {                               // Dirichlet BC
+            if (u_inlet_bc == 0) {                               // Dirichlet BC
                 aVU[0] = 0.0;
                 bVU[0] = rho_v[0] * dz / dt + 2 * D_first + F_r_first;
                 cVU[0] = 0.0;
                 dVU[0] = bVU[0] * u_inlet_value;
-			}
-			else if (u_inlet_bc == 1) {                          // Neumann BC
+            }
+            else if (u_inlet_bc == 1) {                          // Neumann BC
                 aVU[0] = 0.0;
-                bVU[0] = + (rho_v[0] * dz / dt + 2 * D_first + F_r_first);
-                cVU[0] = - (rho_v[0] * dz / dt + 2 * D_first + F_r_first);
+                bVU[0] = +(rho_v[0] * dz / dt + 2 * D_first + F_r_first);
+                cVU[0] = -(rho_v[0] * dz / dt + 2 * D_first + F_r_first);
                 dVU[0] = 0.0;
-			}
+            }
 
-			if (u_outlet_bc == 0) {                              // Dirichlet BC
+            if (u_outlet_bc == 0) {                              // Dirichlet BC
                 aVU[N - 1] = 0.0;
-                bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = bVU[N - 1] * u_outlet_value;
             }
-			else if (u_outlet_bc == 1) {                          // Neumann BC
-                aVU[N - 1] = - (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
-                bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+            else if (u_outlet_bc == 1) {                          // Neumann BC
+                aVU[N - 1] = -(rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = 0.0;
             }
@@ -510,7 +514,7 @@ int main() {
 
                 const double viscous_dissipation =
                     4.0 / 3.0 * 0.25 * mu * ((u_v[i + 1] - u_v[i]) * (u_v[i + 1] - u_v[i])
-                        + (u_v[i] - u_v[i - 1]) * (u_v[i] - u_v[i - 1])) / dz;
+                        + (u_v[i] + u_v[i - 1]) * (u_v[i] + u_v[i - 1])) / dz;
 
                 aVT[i] =
                     -D_v
@@ -529,7 +533,7 @@ int main() {
                     + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
-                    + rho_v_old[i] * cp * dz / dt * T_v_old[i]
+                    +rho_v_old[i] * cp * dz / dt * T_v_old[i]
                     + dp_dt
                     + dpdz_up
                     + viscous_dissipation
@@ -594,8 +598,8 @@ int main() {
 
                     const double psi_i = 1.0 / (Rv * T_v[i]); // [kg/J]
 
-                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l * 0;    // [m/s]
-                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r * 0;    // [m/s]
+                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
+                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
 
                     const double Crho_l = u_l_star >= 0 ? (1.0 / (Rv * T_v[i - 1])) : (1.0 / (Rv * T_v[i]));  // [s2/m2]
                     const double Crho_r = u_r_star >= 0 ? (1.0 / (Rv * T_v[i])) : (1.0 / (Rv * T_v[i + 1]));  // [s2/m2]
@@ -627,11 +631,10 @@ int main() {
                         ;              /// [s/m]
 
                     bVP[i] =
-                        + E_l + E_r
+                        +E_l + E_r
                         + std::max(C_r, 0.0)
                         + std::max(-C_l, 0.0)
-                        + psi_i * dz / dt
-                        ;                  /// [s/m]
+                        + psi_i * dz / dt;                  /// [s/m]
 
                     dVP[i] = +mass_flux - mass_imbalance;  /// [kg/(m2s)]
                 }
@@ -683,23 +686,23 @@ int main() {
                 // BCs on pressure
                 if (p_inlet_bc == 0) {                              // Dirichlet BC
 
-					p_v[0] = p_inlet_value;
+                    p_v[0] = p_inlet_value;
                     p_storage_v[N + 1] = p_inlet_value;
                 }
                 else if (p_inlet_bc == 1) {                         // Neumann BC
 
-					p_v[0] = p_v[1];
+                    p_v[0] = p_v[1];
                     p_storage_v[0] = p_storage_v[1];
                 }
 
                 if (p_outlet_bc == 0) {                              // Dirichlet BC
 
-					p_v[N - 1] = p_outlet_value;
+                    p_v[N - 1] = p_outlet_value;
                     p_storage_v[N + 1] = p_outlet_value;
                 }
                 else if (p_outlet_bc == 1) {                         // Neumann BC
 
-					p_v[N - 1] = p_v[N - 2];
+                    p_v[N - 1] = p_v[N - 2];
                     p_storage_v[N + 1] = p_storage_v[N];
                 }
 
@@ -711,35 +714,6 @@ int main() {
 
                 for (int i = 1; i < N - 1; ++i) {
 
-                    const double D_l = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
-                    const double D_r = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
-
-                    const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
-                    const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]); // [m2s/kg]
-
-                    // Rhie–Chow corrections for face velocities
-                    const double rc_l = -avgInvbVU_L / 4.0 *
-                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
-                    const double rc_r = -avgInvbVU_R / 4.0 *
-                        (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]); // [m/s]
-
-                    // face velocities (avg + RC)
-                    const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                    const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
-
-                    // upwind densities at faces
-                    const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
-                    const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];       // [kg/m3]
-
-                    const double F_l = rho_l * u_l_face; // [kg/(m2s)]
-                    const double F_r = rho_r * u_r_face; // [kg/(m2s)]
-
-                    bVU[i] =
-                        +std::max(F_r, 0.0)
-                        + std::max(-F_l, 0.0)
-                        + rho_v[i] * dz / dt
-                        + D_l + D_r;
-
                     u_prev[i] = u_v[i];
                     u_v[i] -= (p_prime_v[i + 1] - p_prime_v[i - 1]) / (2.0 * bVU[i]);
                     u_error_v = std::max(u_error_v, std::fabs(u_v[i] - u_prev[i]));
@@ -748,47 +722,24 @@ int main() {
                 // -------------------------------------------------------
                 // DENSITY CORRECTOR
                 // -------------------------------------------------------
-                
+
                 rho_error_v = 0.0;
 
                 for (int i = 0; i < N; ++i) {
                     rho_prev[i] = rho_v[i];
-                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
+                    //rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
-                
+
                 // -------------------------------------------------------
                 // CONTINUITY RESIDUAL CALCULATION
                 // -------------------------------------------------------
 
                 continuity_residual = 0.0;
 
-
                 for (int i = 1; i < N - 1; ++i) {
                     continuity_residual = std::max(continuity_residual, std::fabs(dVP[i]));
                 }
-
-                /*
-
-                for (int i = 1; i < N - 1; ++i) {
-
-                    const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]);
-                    const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]);
-
-                    const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];
-                    const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];
-
-                    const double phi_l = rho_l * u_l_face;   // kg/m2/s
-                    const double phi_r = rho_r * u_r_face;   // kg/m2/s
-
-                    rho_v[i] =
-                        rho_v_old[i]
-                        - (dt / dz) * (phi_r - phi_l)
-                        + dt * S_m[i];
-                }
-                                */
-
-                // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
                 inner_v++;
             }
@@ -813,19 +764,16 @@ int main() {
                 temperature_residual = std::max(temperature_residual, std::fabs(T_v[i] - T_v_prev[i]));
             }
 
-            // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
-
             outer_v++;
         }
-        
-        // Esattamente come in OpenFoam
+
         for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
         // Saving old variables
         u_v_old = u_v;
-        T_v_old = T_v;
         p_v_old = p_v;
         rho_v_old = rho_v;
+        T_v_old = T_v;
 
         // ===============================================================
         // OUTPUT
@@ -837,13 +785,13 @@ int main() {
                 v_out << u_v[i] << ", ";
                 p_out << p_v[i] << ", ";
                 T_out << T_v[i] << ", ";
-				rho_out << rho_v[i] << ", ";
+                rho_out << rho_v[i] << ", ";
             }
 
             v_out << "\n";
             p_out << "\n";
             T_out << "\n";
-			rho_out << "\n";
+            rho_out << "\n";
 
             v_out.flush();
             p_out.flush();
@@ -855,7 +803,7 @@ int main() {
     v_out.close();
     p_out.close();
     T_out.close();
-	rho_out.close();
+    rho_out.close();
 
     double end = omp_get_wtime();
     printf("Execution time: %.6f s\n", end - start);
