@@ -11,10 +11,10 @@ picard_max_iter = 100
 picard_tol = 1e-8
 
 # ---------------- PISO ----------------
-piso_outer_iter = 200
-piso_inner_iter = 100
-piso_outer_tol = 1e-8
-piso_inner_tol = 1e-8
+piso_outer_iter = 100
+piso_inner_iter = 50
+piso_outer_tol = 1e-6
+piso_inner_tol = 1e-6
 rhie_chow = 1
 
 # ---------------- FLUID ---------------
