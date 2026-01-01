@@ -366,9 +366,6 @@ int main() {
         momentum_residual = 1.0;
         temperature_residual = 1.0;
 
-        /*
-        std::vector<double> rho_new = rho_v;
-
         for (int i = 1; i < N - 1; ++i) {
 
             const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]);
@@ -380,16 +377,13 @@ int main() {
             const double phi_l = rho_l * u_l_face;   // kg/m2/s
             const double phi_r = rho_r * u_r_face;   // kg/m2/s
 
-            rho_new[i] =
+            rho_v[i] =
                 rho_v_old[i]
                 - (dt / dz) * (phi_r - phi_l)
                 + dt * S_m[i];
         }
 
-        rho_v = rho_new;
-        */
-
-        while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 100)) {
+        while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 1000)) {
 
             // ===========================================================
             // MOMENTUM PREDICTOR
@@ -430,10 +424,12 @@ int main() {
                     + std::max(F_r, 0.0)
                     + std::max(-F_l, 0.0)
                     + rho_v[i] * dz / dt
-                    + D_l + D_r;                            // [kg/(m2s)]
+                    + D_l + D_r
+                    ;                            // [kg/(m2s)]
                 dVU[i] =
                     - 0.5 * (p_v[i + 1] - p_v[i - 1])
-                    + rho_v_old[i] * u_v_old[i] * dz / dt;  // [kg/(ms2)]
+                    + rho_v_old[i] * u_v_old[i] * dz / dt
+                    ;  // [kg/(ms2)]
             }
 
             /// Diffusion coefficients for the first and last node to define BCs
@@ -514,7 +510,7 @@ int main() {
 
                 const double viscous_dissipation =
                     4.0 / 3.0 * 0.25 * mu * ((u_v[i + 1] - u_v[i]) * (u_v[i + 1] - u_v[i])
-                        + (u_v[i] + u_v[i - 1]) * (u_v[i] + u_v[i - 1])) / dz;
+                        + (u_v[i] - u_v[i - 1]) * (u_v[i] - u_v[i - 1])) / dz;
 
                 aVT[i] =
                     -D_v
@@ -522,12 +518,12 @@ int main() {
                     ;               /// [W/(m2K)]
 
                 cVT[i] =
-                    - D_r
+                    -D_r
                     - std::max(-C_r, 0.0)
                     ;              /// [W/(m2K)]
 
                 bVT[i] =
-                    + std::max(C_r, 0.0)
+                    +std::max(C_r, 0.0)
                     + std::max(-C_l, 0.0)
                     + D_v + D_r
                     + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
@@ -598,8 +594,8 @@ int main() {
 
                     const double psi_i = 1.0 / (Rv * T_v[i]); // [kg/J]
 
-                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
+                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l * 0;    // [m/s]
+                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r * 0;    // [m/s]
 
                     const double Crho_l = u_l_star >= 0 ? (1.0 / (Rv * T_v[i - 1])) : (1.0 / (Rv * T_v[i]));  // [s2/m2]
                     const double Crho_r = u_r_star >= 0 ? (1.0 / (Rv * T_v[i])) : (1.0 / (Rv * T_v[i + 1]));  // [s2/m2]
@@ -634,7 +630,8 @@ int main() {
                         + E_l + E_r
                         + std::max(C_r, 0.0)
                         + std::max(-C_l, 0.0)
-                        + psi_i * dz / dt;                  /// [s/m]
+                        + psi_i * dz / dt
+                        ;                  /// [s/m]
 
                     dVP[i] = +mass_flux - mass_imbalance;  /// [kg/(m2s)]
                 }
@@ -713,6 +710,36 @@ int main() {
                 u_error_v = 0.0;
 
                 for (int i = 1; i < N - 1; ++i) {
+
+                    const double D_l = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
+                    const double D_r = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
+
+                    const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
+                    const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]); // [m2s/kg]
+
+                    // Rhie–Chow corrections for face velocities
+                    const double rc_l = -avgInvbVU_L / 4.0 *
+                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
+                    const double rc_r = -avgInvbVU_R / 4.0 *
+                        (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]); // [m/s]
+
+                    // face velocities (avg + RC)
+                    const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
+                    const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
+
+                    // upwind densities at faces
+                    const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
+                    const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];       // [kg/m3]
+
+                    const double F_l = rho_l * u_l_face; // [kg/(m2s)]
+                    const double F_r = rho_r * u_r_face; // [kg/(m2s)]
+
+                    bVU[i] =
+                        +std::max(F_r, 0.0)
+                        + std::max(-F_l, 0.0)
+                        + rho_v[i] * dz / dt
+                        + D_l + D_r;
+
                     u_prev[i] = u_v[i];
                     u_v[i] -= (p_prime_v[i + 1] - p_prime_v[i - 1]) / (2.0 * bVU[i]);
                     u_error_v = std::max(u_error_v, std::fabs(u_v[i] - u_prev[i]));
@@ -726,7 +753,7 @@ int main() {
 
                 for (int i = 0; i < N; ++i) {
                     rho_prev[i] = rho_v[i];
-                    //rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
+                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
                 
@@ -736,9 +763,32 @@ int main() {
 
                 continuity_residual = 0.0;
 
+
                 for (int i = 1; i < N - 1; ++i) {
                     continuity_residual = std::max(continuity_residual, std::fabs(dVP[i]));
                 }
+
+                /*
+
+                for (int i = 1; i < N - 1; ++i) {
+
+                    const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]);
+                    const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]);
+
+                    const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];
+                    const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];
+
+                    const double phi_l = rho_l * u_l_face;   // kg/m2/s
+                    const double phi_r = rho_r * u_r_face;   // kg/m2/s
+
+                    rho_v[i] =
+                        rho_v_old[i]
+                        - (dt / dz) * (phi_r - phi_l)
+                        + dt * S_m[i];
+                }
+                                */
+
+                // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
                 inner_v++;
             }
@@ -763,16 +813,19 @@ int main() {
                 temperature_residual = std::max(temperature_residual, std::fabs(T_v[i] - T_v_prev[i]));
             }
 
+            // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+
             outer_v++;
         }
-
+        
+        // Esattamente come in OpenFoam
         for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
         // Saving old variables
         u_v_old = u_v;
+        T_v_old = T_v;
         p_v_old = p_v;
         rho_v_old = rho_v;
-        T_v_old = T_v;
 
         // ===============================================================
         // OUTPUT

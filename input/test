@@ -6,11 +6,15 @@ L = 1.0
 dt_user = 1e-3
 simulation_time = 1.0
 
+# ---------------- PICARD --------------
+picard_max_iter = 100
+picard_tol = 1e-8
+
 # ---------------- PISO ----------------
-piso_outer_iter = 100
+piso_outer_iter = 200
 piso_inner_iter = 100
-piso_outer_tol = 1e-8
-piso_inner_tol = 1e-8
+piso_outer_tol = 1e-6
+piso_inner_tol = 1e-7
 rhie_chow = 1
 
 # ---------------- FLUID ---------------
@@ -20,7 +24,7 @@ k = 0.01
 cp = 1000
 
 # ---------------- SOURCES -------------
-S_m_cell = 0.01
+S_m_cell = 0.0
 S_h_cell = 0.0
 
 z_evap_start = 0.0
@@ -32,18 +36,18 @@ z_cond_end   = 1.0
 u_initial = 0.0
 T_initial = 300.0
 p_initial = 10000.0
-rho_initial = 0.092
+rho_initial = 0.0922
 
 # -------- VELOCITY BCs ----------
 u_inlet_bc    = 0
-u_inlet_value = 0.0
+u_inlet_value = 1.0
 
-u_outlet_bc    = 0
+u_outlet_bc    = 1
 u_outlet_value = 0.0
 
 # -------- TEMPERATURE BCs -------
 T_inlet_bc    = 0
-T_inlet_value = 300.0
+T_inlet_value = 350.0
 
 T_outlet_bc    = 0
 T_outlet_value = 300.0
@@ -56,7 +60,7 @@ p_outlet_bc    = 0
 p_outlet_value = 10000.0
 
 # ---------------- OUTPUT --------------
-number_output = 1000
+number_output = 10
 velocity_file = velocity.dat
 pressure_file = pressure.dat
 temperature_file = temperature.dat
