@@ -748,7 +748,7 @@ int main() {
             outer_v++;
         }
 
-        // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+        for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
         // Saving old variables
         u_v_old = u_v;
