@@ -33,14 +33,14 @@ z_cond_start = 0.7
 z_cond_end   = 1.0
 
 # -------- ICs --------
-u_initial = 1.0
+u_initial = 0.0
 T_initial = 300.0
 p_initial = 10000.0
 rho_initial = 0.0922
 
 # -------- VELOCITY BCs ----------
 u_inlet_bc    = 0
-u_inlet_value = 1.0
+u_inlet_value = 0.0
 
 u_outlet_bc    = 1
 u_outlet_value = 0.0

@@ -11,6 +11,8 @@
 
 #include "tdma.h"
 
+#pragma region input
+
 namespace fs = std::filesystem;
 
 std::string chooseInputFile(const std::string& inputDir) {
@@ -208,6 +210,8 @@ Input readInput(const std::string& filename) {
     return in;
 }
 
+#pragma endregion
+
 // =======================================================================
 //                                MAIN
 // =======================================================================
@@ -366,7 +370,7 @@ int main() {
         momentum_residual = 1.0;
         temperature_residual = 1.0;
 
-        /*
+        
         std::vector<double> rho_new = rho_v;
 
         for (int i = 1; i < N - 1; ++i) {
@@ -387,7 +391,7 @@ int main() {
         }
 
         rho_v = rho_new;
-        */
+        
 
         while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 100)) {
 
@@ -433,7 +437,7 @@ int main() {
                     + D_l + D_r;                            // [kg/(m2s)]
                 dVU[i] =
                     -0.5 * (p_v[i + 1] - p_v[i - 1])
-                    + rho_v[i] * u_v_old[i] * dz / dt;  // [kg/(ms2)]
+                    + rho_v_old[i] * u_v_old[i] * dz / dt;  // [kg/(ms2)]
             }
 
             /// Diffusion coefficients for the first and last node to define BCs
@@ -530,7 +534,7 @@ int main() {
                     +std::max(C_r, 0.0)
                     + std::max(-C_l, 0.0)
                     + D_v + D_r
-                    + rho_v_old[i] * cp * dz / dt;          /// [W/(m2 K)]
+                    + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
                     + rho_v_old[i] * cp * dz / dt * T_v_old[i]
@@ -613,7 +617,7 @@ int main() {
                     const double phi_l = rho_l_upwind * u_l_star;   // [kg/(m2s)]
                     const double phi_r = rho_r_upwind * u_r_star;   // [kg/(m2s)]
 
-                    const double mass_imbalance = (phi_r - phi_l) /* + (rho_v[i] - rho_v_old[i]) * dz / dt*/;  // [kg/(m2s)]
+                    const double mass_imbalance = (phi_r - phi_l) + (rho_v[i] - rho_v_old[i]) * dz / dt;  // [kg/(m2s)]
 
                     const double mass_flux = S_m[i] * dz;         // [kg/(m2s)]
 
@@ -634,7 +638,8 @@ int main() {
                         +E_l + E_r
                         + std::max(C_r, 0.0)
                         + std::max(-C_l, 0.0)
-                        + psi_i * dz / dt;                  /// [s/m]
+                        + psi_i * dz / dt
+                        ;                 /// [s/m]
 
                     dVP[i] = +mass_flux - mass_imbalance;  /// [kg/(m2s)]
                 }
@@ -767,7 +772,7 @@ int main() {
             outer_v++;
         }
 
-        for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+        // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
         // Saving old variables
         u_v_old = u_v;
