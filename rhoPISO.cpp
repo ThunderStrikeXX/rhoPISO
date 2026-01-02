@@ -364,30 +364,7 @@ int main() {
         outer_v = 0;
 
         momentum_residual = 1.0;
-        temperature_residual = 1.0;
-
-        /*
-        std::vector<double> rho_new = rho_v;
-
-        for (int i = 1; i < N - 1; ++i) {
-
-            const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]);
-            const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]);
-
-            const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];
-            const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];
-
-            const double phi_l = rho_l * u_l_face;   // kg/m2/s
-            const double phi_r = rho_r * u_r_face;   // kg/m2/s
-
-            rho_new[i] =
-                rho_v_old[i]
-                - (dt / dz) * (phi_r - phi_l)
-                + dt * S_m[i];
-        }
-
-        rho_v = rho_new;
-        */
+        temperature_residual = 1.0;       
 
         while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 100)) {
 
@@ -477,7 +454,7 @@ int main() {
             }
 
             u_v = tdma::solve(aVU, bVU, cVU, dVU);
-
+            
             // ===============================================================
             // TEMPERATURE SOLVER
             // ===============================================================
@@ -537,7 +514,9 @@ int main() {
                     + dp_dt
                     + dpdz_up
                     + viscous_dissipation
-                    + S_h[i] * dz;                      /// [W/m2]
+                    + S_h[i] * dz
+					+ S_m[i] * cp * T_v[i] * dz
+                    ;                      /// [W/m2]
             }
 
             // BCs on temperature
@@ -726,9 +705,33 @@ int main() {
 
                 for (int i = 0; i < N; ++i) {
                     rho_prev[i] = rho_v[i];
-                    //rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
+                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);                                       // On o off non cambia il campo di velocità
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
+
+                /*
+                
+                std::vector<double> rho_new = rho_v;
+
+                for (int i = 1; i < N - 1; ++i) {
+
+                    const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]);
+                    const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]);
+
+                    const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];
+                    const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];
+
+                    const double phi_l = rho_l * u_l_face;   // kg/m2/s
+                    const double phi_r = rho_r * u_r_face;   // kg/m2/s
+
+                    rho_v[i] =
+                        rho_v_old[i]
+                        - (dt / dz) * (phi_r - phi_l)
+                        + dt * S_m[i];
+                }
+
+                rho_v = rho_new;
+                */
                 
                 // -------------------------------------------------------
                 // CONTINUITY RESIDUAL CALCULATION
@@ -766,7 +769,7 @@ int main() {
             outer_v++;
         }
 
-        for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+        // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
         // Saving old variables
         u_v_old = u_v;
