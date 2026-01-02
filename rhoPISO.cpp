@@ -11,6 +11,8 @@
 
 #include "tdma.h"
 
+#pragma region input
+
 namespace fs = std::filesystem;
 
 std::string chooseInputFile(const std::string& inputDir) {
@@ -207,6 +209,8 @@ Input readInput(const std::string& filename) {
 
     return in;
 }
+
+#pragma endregion
 
 // =======================================================================
 //                                MAIN
