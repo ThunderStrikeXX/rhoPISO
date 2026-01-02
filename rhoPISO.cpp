@@ -730,6 +730,9 @@ int main() {
             T_v_prev = T_v;
             T_v = tdma::solve(aVT, bVT, cVT, dVT);
 
+            for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+
+
             // -------------------------------------------------------
             // TEMPERATURE RESIDUAL CALCULATION
             // -------------------------------------------------------
