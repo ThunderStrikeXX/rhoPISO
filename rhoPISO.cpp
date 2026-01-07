@@ -410,10 +410,12 @@ int main() {
                     + std::max(F_r, 0.0)
                     + std::max(-F_l, 0.0)
                     + rho_v[i] * dz / dt
-                    + D_l + D_r;                            // [kg/(m2s)]
+                    + D_l + D_r
+                    ;                            // [kg/(m2s)]
                 dVU[i] =
                     - 0.5 * (p_v[i + 1] - p_v[i - 1])
-                    + rho_v_old[i] * u_v_old[i] * dz / dt;  // [kg/(ms2)]
+                    + rho_v_old[i] * u_v_old[i] * dz / dt
+                    ;  // [kg/(ms2)]
             }
 
             /// Diffusion coefficients for the first and last node to define BCs
@@ -555,6 +557,8 @@ int main() {
 
             T_v_prev = T_v;
             T_v = tdma::solve(aVT, bVT, cVT, dVT);
+
+            for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
             rho_error_v = 1.0;
             p_error_v = 1.0;
@@ -708,9 +712,12 @@ int main() {
 
                 for (int i = 0; i < N; ++i) {
                     rho_prev[i] = rho_v[i];
-                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);                                       // On o off non cambia il campo di velocità
+                    // rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);                                       // On o off non cambia il campo di velocità
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
+
+
+                for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
                 
                 // -------------------------------------------------------
                 // CONTINUITY RESIDUAL CALCULATION
