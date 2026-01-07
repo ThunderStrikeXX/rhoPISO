@@ -499,12 +499,12 @@ int main() {
                 aVT[i] =
                     -D_v
                     - std::max(C_l, 0.0)
-                    ;               /// [W/(m2K)]
+                    ;                                   /// [W/(m2K)]
 
                 cVT[i] =
                     - D_r
                     - std::max(-C_r, 0.0)
-                    ;              /// [W/(m2K)]
+                    ;                                   /// [W/(m2K)]
 
                 bVT[i] =
                     + std::max(C_r, 0.0)
@@ -519,7 +519,7 @@ int main() {
                     + viscous_dissipation
                     + S_h[i] * dz
 					+ S_m[i] * cp * T_v[i] * dz
-                    ;                      /// [W/m2]
+                    ;                                   /// [W/m2]
             }
 
             // BCs on temperature
