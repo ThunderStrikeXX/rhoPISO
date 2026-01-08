@@ -708,43 +708,16 @@ int main() {
                 // DENSITY CORRECTOR
                 // -------------------------------------------------------
                 
-                /*
+                
                 rho_error_v = 0.0;
 
                 for (int i = 1; i < N - 1; ++i) {
                     rho_prev[i] = rho_v[i];
-                    const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
-                    const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
-
-                    const double rc_l = -avgInvbVU_L / 4.0 *
-                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
-                    const double rc_r = -avgInvbVU_R / 4.0 *
-                        (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
-
-                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
-
-                    const double rho_l_upwind = (u_l_star >= 0.0) ? rho_v[i - 1] : rho_v[i];    // [kg/m3]
-                    const double rho_r_upwind = (u_r_star >= 0.0) ? rho_v[i] : rho_v[i + 1];    // [kg/m3]
-
-                    const double phi_l = rho_l_upwind * u_l_star;   // [kg/(m2s)]
-                    const double phi_r = rho_r_upwind * u_r_star;   // [kg/(m2s)]
-                    rho_v[i] =
-                        rho_v_old[i]
-                        + dt * (-(phi_r - phi_l) / dz + S_m[i]);
-
-                    // rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);                                       // On o off non cambia il campo di velocità
-                    
+                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);                                       // On o off non cambia il campo di velocità
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
 
-                rho_v[0] = rho_v[1];
-                rho_v[N - 1] = rho_v[N - 2];
-
-                */
-
-
-                for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
+                // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
                 
                 // -------------------------------------------------------
                 // CONTINUITY RESIDUAL CALCULATION
@@ -781,6 +754,35 @@ int main() {
 
             outer_v++;
         }
+
+        /*
+
+        for (int i = 1; i < N - 1; ++i) {
+            const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
+            const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
+
+            const double rc_l = -avgInvbVU_L / 4.0 *
+                (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
+            const double rc_r = -avgInvbVU_R / 4.0 *
+                (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
+
+            const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
+            const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
+
+            const double rho_l_upwind = (u_l_star >= 0.0) ? rho_v[i - 1] : rho_v[i];    // [kg/m3]
+            const double rho_r_upwind = (u_r_star >= 0.0) ? rho_v[i] : rho_v[i + 1];    // [kg/m3]
+
+            const double phi_l = rho_l_upwind * u_l_star;   // [kg/(m2s)]
+            const double phi_r = rho_r_upwind * u_r_star;   // [kg/(m2s)]
+            rho_v[i] =
+                rho_v_old[i]
+                + dt * (-(phi_r - phi_l) / dz + S_m[i]);
+        }
+
+        rho_v[0] = rho_v[1];
+        rho_v[N - 1] = rho_v[N - 2];
+
+        */
 
         // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
