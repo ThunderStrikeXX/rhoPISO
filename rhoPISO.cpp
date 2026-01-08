@@ -411,11 +411,11 @@ int main() {
                     + std::max(-F_l, 0.0)
                     + rho_v[i] * dz / dt
                     + D_l + D_r
-                    ;                            // [kg/(m2s)]
+                    ;                                       // [kg/(m2s)]
                 dVU[i] =
                     - 0.5 * (p_v[i + 1] - p_v[i - 1])
                     + rho_v_old[i] * u_v_old[i] * dz / dt
-                    ;  // [kg/(ms2)]
+                    ;                                       // [kg/(ms2)]
             }
 
             /// Diffusion coefficients for the first and last node to define BCs
@@ -445,13 +445,13 @@ int main() {
                 dVU[0] = 0.0;
 			}
 
-			if (u_outlet_bc == 0) {                              // Dirichlet BC
+			if (u_outlet_bc == 0) {                             // Dirichlet BC
                 aVU[N - 1] = 0.0;
                 bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = bVU[N - 1] * u_outlet_value;
             }
-			else if (u_outlet_bc == 1) {                          // Neumann BC
+			else if (u_outlet_bc == 1) {                        // Neumann BC
                 aVU[N - 1] = - (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
                 bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
                 cVU[N - 1] = 0.0;
@@ -558,8 +558,6 @@ int main() {
             T_v_prev = T_v;
             T_v = tdma::solve(aVT, bVT, cVT, dVT);
 
-            // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
-
             rho_error_v = 1.0;
             p_error_v = 1.0;
             inner_v = 0;
@@ -582,7 +580,7 @@ int main() {
                     const double rc_r = -avgInvbVU_R / 4.0 *
                         (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
 
-                    const double psi_i = 1.0 / (Rv * T_v[i]); // [kg/J]
+                    const double psi_i = 1.0 / (Rv * T_v[i]);   // [kg/J]
 
                     const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
                     const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
@@ -601,7 +599,7 @@ int main() {
 
                     const double mass_imbalance = (phi_r - phi_l) + (rho_v[i] - rho_v_old[i]) * dz / dt;  // [kg/(m2s)]
 
-                    const double mass_flux = S_m[i] * dz;         // [kg/(m2s)]
+                    const double mass_flux = S_m[i] * dz;           // [kg/(m2s)]
 
                     const double E_l = 0.5 * (rho_v[i - 1] * (1.0 / bVU[i - 1]) + rho_v[i] * (1.0 / bVU[i])) / dz; // [s/m]
                     const double E_r = 0.5 * (rho_v[i] * (1.0 / bVU[i]) + rho_v[i + 1] * (1.0 / bVU[i + 1])) / dz; // [s/m]
@@ -609,12 +607,12 @@ int main() {
                     aVP[i] =
                         -E_l
                         - std::max(C_l, 0.0)
-                        ;               /// [s/m]
+                        ;                                   /// [s/m]
 
                     cVP[i] =
                         -E_r
                         - std::max(-C_r, 0.0)
-                        ;              /// [s/m]
+                        ;                                   /// [s/m]
 
                     bVP[i] =
                         + E_l + E_r
@@ -622,30 +620,30 @@ int main() {
                         + std::max(-C_l, 0.0)
                         + psi_i * dz / dt;                  /// [s/m]
 
-                    dVP[i] = +mass_flux - mass_imbalance;  /// [kg/(m2s)]
+                    dVP[i] = +mass_flux - mass_imbalance;   /// [kg/(m2s)]
                 }
 
                 // BCs on p_prime
-                if (p_inlet_bc == 0) {                               // Dirichlet BC
+                if (p_inlet_bc == 0) {                      // Dirichlet BC
                     aVP[0] = 0.0;
                     bVP[0] = 1.0;
                     cVP[0] = 0.0;
                     dVP[0] = 0.0;
                 }
-                else if (p_inlet_bc == 1) {                          // Neumann BC
+                else if (p_inlet_bc == 1) {                 // Neumann BC
                     aVP[0] = 0.0;
                     bVP[0] = 1.0;
                     cVP[0] = -1.0;
                     dVP[0] = 0.0;
                 }
 
-                if (p_outlet_bc == 0) {                              // Dirichlet BC
+                if (p_outlet_bc == 0) {                     // Dirichlet BC
                     aVP[N - 1] = 0.0;
                     bVP[N - 1] = 1.0;
                     cVP[N - 1] = 0.0;
                     dVP[N - 1] = 0.0;
                 }
-                else if (p_outlet_bc == 1) {                          // Neumann BC
+                else if (p_outlet_bc == 1) {                // Neumann BC
                     aVP[N - 1] = -1.0;
                     bVP[N - 1] = 1.0;
                     cVP[N - 1] = 0.0;
@@ -681,12 +679,12 @@ int main() {
                     p_storage_v[0] = p_storage_v[1];
                 }
 
-                if (p_outlet_bc == 0) {                              // Dirichlet BC
+                if (p_outlet_bc == 0) {                             // Dirichlet BC
 
 					p_v[N - 1] = p_outlet_value;
                     p_storage_v[N + 1] = p_outlet_value;
                 }
-                else if (p_outlet_bc == 1) {                         // Neumann BC
+                else if (p_outlet_bc == 1) {                        // Neumann BC
 
 					p_v[N - 1] = p_v[N - 2];
                     p_storage_v[N + 1] = p_storage_v[N];
@@ -713,12 +711,10 @@ int main() {
 
                 for (int i = 1; i < N - 1; ++i) {
                     rho_prev[i] = rho_v[i];
-                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);                                       // On o off non cambia il campo di velocità
+                    rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
 
-                // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
-                
                 // -------------------------------------------------------
                 // CONTINUITY RESIDUAL CALCULATION
                 // -------------------------------------------------------
@@ -754,37 +750,6 @@ int main() {
 
             outer_v++;
         }
-
-        /*
-
-        for (int i = 1; i < N - 1; ++i) {
-            const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
-            const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
-
-            const double rc_l = -avgInvbVU_L / 4.0 *
-                (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
-            const double rc_r = -avgInvbVU_R / 4.0 *
-                (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
-
-            const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-            const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
-
-            const double rho_l_upwind = (u_l_star >= 0.0) ? rho_v[i - 1] : rho_v[i];    // [kg/m3]
-            const double rho_r_upwind = (u_r_star >= 0.0) ? rho_v[i] : rho_v[i + 1];    // [kg/m3]
-
-            const double phi_l = rho_l_upwind * u_l_star;   // [kg/(m2s)]
-            const double phi_r = rho_r_upwind * u_r_star;   // [kg/(m2s)]
-            rho_v[i] =
-                rho_v_old[i]
-                + dt * (-(phi_r - phi_l) / dz + S_m[i]);
-        }
-
-        rho_v[0] = rho_v[1];
-        rho_v[N - 1] = rho_v[N - 2];
-
-        */
-
-        // for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
         // Saving old variables
         u_v_old = u_v;
