@@ -343,6 +343,7 @@ int main() {
     std::ofstream p_out(outputDir / in.pressure_file);              // Pressure output file
     std::ofstream T_out(outputDir / in.temperature_file);           // Temperature output file
 	std::ofstream rho_out(outputDir / in.density_file);             // Density output file
+	std::ofstream time_out(outputDir / "time.txt");               // Time output file
 
     // Convergence metrics
     double continuity_residual = 1.0;
@@ -499,7 +500,7 @@ int main() {
                         + (u_v[i] + u_v[i - 1]) * (u_v[i] + u_v[i - 1])) / dz;
 
                 aVT[i] =
-                    -D_v
+                    - D_v
                     - std::max(C_l, 0.0)
                     ;                                   /// [W/(m2K)]
 
@@ -520,7 +521,7 @@ int main() {
                     + dpdz_up
                     + viscous_dissipation
                     + S_h[i] * dz
-					+ S_m[i] * cp * T_v[i] * dz
+                    + S_m[i] * cp * T_v[i] * dz
                     ;                                   /// [W/m2]
             }
 
@@ -757,6 +758,8 @@ int main() {
         rho_v_old = rho_v;
         T_v_old = T_v;
 
+		time_total += dt;
+
         // ===============================================================
         // OUTPUT
         // ===============================================================
@@ -770,6 +773,8 @@ int main() {
 				rho_out << rho_v[i] << ", ";
             }
 
+			time_out << time_total << ", ";
+
             v_out << "\n";
             p_out << "\n";
             T_out << "\n";
@@ -779,6 +784,7 @@ int main() {
             p_out.flush();
             T_out.flush();
             rho_out.flush();
+            time_out.flush();
         }
     }
 
@@ -786,6 +792,7 @@ int main() {
     p_out.close();
     T_out.close();
 	rho_out.close();
+	time_out.close();
 
     double end = omp_get_wtime();
     printf("Execution time: %.6f s\n", end - start);

@@ -4,7 +4,7 @@ L = 1.0
 
 # ---------------- TIME ----------------
 dt_user = 1e-3
-simulation_time = 2.0
+simulation_time = 1.0
 
 # ---------------- PISO ----------------
 piso_outer_iter = 100
@@ -16,11 +16,11 @@ rhie_chow = 1
 # ---------------- FLUID ---------------
 mu = 1e-5
 Rv = 361.5
-k = 0.01
+k = 1
 cp = 1000
 
 # ---------------- SOURCES -------------
-S_m_cell = 0.01
+S_m_cell = 0.0
 S_h_cell = 0.0
 
 z_evap_start = 0.0
@@ -29,16 +29,16 @@ z_cond_start = 0.7
 z_cond_end   = 1.0
 
 # -------- ICs --------
-u_initial = 0.0
+u_initial = 1.0
 T_initial = 300.0
 p_initial = 10000.0
 rho_initial = 0.092
 
 # -------- VELOCITY BCs ----------
 u_inlet_bc    = 0
-u_inlet_value = 0.0
+u_inlet_value = 1.0
 
-u_outlet_bc    = 0
+u_outlet_bc    = 1
 u_outlet_value = 0.0
 
 # -------- TEMPERATURE BCs -------
