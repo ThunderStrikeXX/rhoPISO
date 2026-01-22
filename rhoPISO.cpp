@@ -795,7 +795,9 @@ int main() {
 	time_out.close();
 
     double end = omp_get_wtime();
-    printf("Execution time: %.6f s\n", end - start);
+    std::cout << "Execution time: " << end - start;
+
+    system("pause");
 
     return 0;
 }
