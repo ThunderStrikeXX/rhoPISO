@@ -797,5 +797,7 @@ int main() {
     double end = omp_get_wtime();
     printf("Execution time: %.6f s\n", end - start);
 
+    system("pause");
+
     return 0;
 }
