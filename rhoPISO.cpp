@@ -280,6 +280,8 @@ int main() {
 	std::vector<double> S_m(N, 0.0);                                    // Volumetric mass source [kg/(m3 s)]
 	std::vector<double> S_h(N, 0.0);                                    // Volumetric heat source [W/m3]
 
+    std::vector<double> H_conv(N, 0.0);
+
 	// Source vectors definition
     for (int i = 0; i < N; ++i) {
 
@@ -291,9 +293,15 @@ int main() {
         }
         else if (z >= in.z_cond_start && z <= in.z_cond_end) {
             S_m[i] = -in.S_m_cell;
-            S_h[i] = -in.S_h_cell;
+            // S_h[i] = -in.S_h_cell;
+            H_conv[i] = 10000;
         }
     }
+
+    std::vector<double> heat_sources(N, 0.0);
+
+    double total_heat_input = 0.0;
+    double total_heat_output = 0.0;
 
 	const double u_inlet_value = in.u_inlet_value;          // Inlet velocity [m/s]
 	const double u_outlet_value = in.u_outlet_value;        // Outlet velocity [m/s]
@@ -513,16 +521,20 @@ int main() {
                     + std::max(C_r, 0.0)
                     + std::max(-C_l, 0.0)
                     + D_v + D_r
+                    + H_conv[i]
                     + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
                     + rho_v_old[i] * cp * dz / dt * T_v_old[i]
-                    + dp_dt
-                    + dpdz_up
-                    + viscous_dissipation
+                    // + dp_dt
+                    // + dpdz_up
+                    // + viscous_dissipation
                     + S_h[i] * dz
+                    + H_conv[i] * 300 
                     + S_m[i] * cp * T_v[i] * dz
                     ;                                   /// [W/m2]
+
+                heat_sources[i] = S_h[i] * dz - H_conv[i] * (T_v[i] - 300);
             }
 
             // BCs on temperature
@@ -785,6 +797,18 @@ int main() {
             T_out.flush();
             rho_out.flush();
             time_out.flush();
+
+            total_heat_input = 0.0;
+            total_heat_output = 0.0;
+
+            double total_heat = 0.0;
+
+            for (int i = 0; i < N; ++i) total_heat += heat_sources[i];
+
+            total_heat += cp * rho_v[0] * u_v[0] * T_v[0];
+            total_heat += - cp * rho_v[N - 1] * u_v[N - 1] * T_v[N - 1];
+
+            std::cout << total_heat << std::endl;
         }
     }
 
