@@ -417,32 +417,32 @@ int main() {
             // BCs on temperature
             if (u_inlet_bc == 0) {                      // Dirichlet BC
 
-                aVT[0] = 0.0;
-                bVT[0] = 1.0;
-                cVT[0] = 1.0;
-                dVT[0] = 0.0;
+                aVU[0] = 0.0;
+                bVU[0] = 1.0;
+                cVU[0] = 1.0;
+                dVU[0] = 0.0;
             }
             else if (u_inlet_bc == 1) {                 // Neumann BC
 
-                aVT[0] = 0.0;
-                bVT[0] = 1.0;
-                cVT[0] = -1.0;
-                dVT[0] = 0.0;
+                aVU[0] = 0.0;
+                bVU[0] = 1.0;
+                cVU[0] = -1.0;
+                dVU[0] = 0.0;
             }
 
             if (u_outlet_bc == 0) {                     // Dirichlet BC
 
-                aVT[N - 1] = 1.0;
-                bVT[N - 1] = 1.0;
-                cVT[N - 1] = 0.0;
-                dVT[N - 1] = 0.0;
+                aVU[N - 1] = 1.0;
+                bVU[N - 1] = 1.0;
+                cVU[N - 1] = 0.0;
+                dVU[N - 1] = 0.0;
             }
             else if (u_outlet_bc == 1) {                // Neumann BC
 
-                aVT[N - 1] = -1.0;
-                bVT[N - 1] = 1.0;
-                cVT[N - 1] = 0.0;
-                dVT[N - 1] = 0.0;
+                aVU[N - 1] = -1.0;
+                bVU[N - 1] = 1.0;
+                cVU[N - 1] = 0.0;
+                dVU[N - 1] = 0.0;
             }
 
             u_v = tdma::solve(aVU, bVU, cVU, dVU);
