@@ -281,22 +281,8 @@ int main() {
 	std::vector<double> S_h(N, 0.0);                                    // Volumetric heat source [W/m3]
 
     std::vector<double> H_conv(N, 0.0);
-
-	// Source vectors definition
-    for (int i = 0; i < N; ++i) {
-
-        const double z = (i + 0.5) * dz;
-
-        if (z >= in.z_evap_start && z <= in.z_evap_end) {
-            S_m[i] = in.S_m_cell;
-            S_h[i] = in.S_h_cell;
-        }
-        else if (z >= in.z_cond_start && z <= in.z_cond_end) {
-            S_m[i] = -in.S_m_cell;
-            // S_h[i] = -in.S_h_cell;
-            H_conv[i] = 10000;
-        }
-    }
+    std::vector<double> beta(N, 0.0001);
+    const double P_eq = 9500;
 
     std::vector<double> heat_sources(N, 0.0);
 
@@ -371,6 +357,24 @@ int main() {
 
 	// Time-stepping loop
     for (int n = 0; n <= time_steps; ++n) {
+
+        // Source vectors definition
+        for (int i = 0; i < N; ++i) {
+
+            const double z = (i + 0.5) * dz;
+
+            if (z >= in.z_evap_start && z <= in.z_evap_end) {
+                S_m[i] = in.S_m_cell;
+                // S_h[i] = in.S_h_cell;
+            }
+            else if (z >= in.z_cond_start && z <= in.z_cond_end) {
+                // S_m[i] = -in.S_m_cell;
+                // S_h[i] = -in.S_h_cell;
+                // H_conv[i] = 10000;
+
+                S_m[i] = beta[i] * (P_eq - p_v[i]);
+            }
+        }
 
         u_error_v = 1.0;
         outer_v = 0;
@@ -529,8 +533,8 @@ int main() {
                     // + dp_dt
                     // + dpdz_up
                     // + viscous_dissipation
-                    + S_h[i] * dz
-                    + H_conv[i] * 300 
+                    // + S_h[i] * dz
+                    // + H_conv[i] * 300 
                     + S_m[i] * cp * T_v[i] * dz
                     ;                                   /// [W/m2]
 
@@ -719,7 +723,6 @@ int main() {
                 // DENSITY CORRECTOR
                 // -------------------------------------------------------
                 
-                
                 rho_error_v = 0.0;
 
                 for (int i = 1; i < N - 1; ++i) {
@@ -798,9 +801,6 @@ int main() {
             rho_out.flush();
             time_out.flush();
 
-            total_heat_input = 0.0;
-            total_heat_output = 0.0;
-
             double total_heat = 0.0;
 
             for (int i = 0; i < N; ++i) total_heat += heat_sources[i];
@@ -808,7 +808,13 @@ int main() {
             total_heat += cp * rho_v[0] * u_v[0] * T_v[0];
             total_heat += - cp * rho_v[N - 1] * u_v[N - 1] * T_v[N - 1];
 
-            std::cout << total_heat << std::endl;
+            // std::cout << total_heat << std::endl;
+
+            double total_mass = 0.0;
+
+            for (int i = 0; i < N; ++i) total_mass += S_m[i];
+
+            std::cout << total_mass << std::endl;
         }
     }
 
