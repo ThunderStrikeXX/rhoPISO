@@ -52,7 +52,7 @@ T_outlet_value = 300.0
 p_inlet_bc    = 1
 p_inlet_value = 0.0
 
-p_outlet_bc    = 0
+p_outlet_bc    = 1
 p_outlet_value = 10000.0
 
 # ---------------- OUTPUT --------------

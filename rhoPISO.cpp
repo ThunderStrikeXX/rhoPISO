@@ -284,6 +284,8 @@ int main() {
     std::vector<double> beta(N, 0.0001);
     const double P_eq = 9500;
 
+    std::vector<double> phi(N + 1, 0.0);
+
     std::vector<double> heat_sources(N, 0.0);
 
     double total_heat_input = 0.0;
@@ -393,82 +395,54 @@ int main() {
                 const double D_l = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
                 const double D_r = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
 
-                const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
-                const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]); // [m2s/kg]
-
-                // Rhie–Chow corrections for face velocities
-                const double rc_l = -avgInvbVU_L / 4.0 *
-                    (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
-                const double rc_r = -avgInvbVU_R / 4.0 *
-                    (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]); // [m/s]
-
-                // face velocities (avg + RC)
-                const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
-
-                // upwind densities at faces
-                const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
-                const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];       // [kg/m3]
-
-                const double F_l = rho_l * u_l_face; // [kg/(m2s)]
-                const double F_r = rho_r * u_r_face; // [kg/(m2s)]
-
                 aVU[i] =
-                    - std::max(F_l, 0.0)
-                    - D_l;                                  // [kg/(m2s)]
+                    - std::max(phi[i], 0.0)
+                    - D_l;                                      // [kg/(m2s)]
                 cVU[i] =
-                    - std::max(-F_r, 0.0)
-                    - D_r;                                  // [kg/(m2s)]
+                    - std::max(-phi[i + 1], 0.0)
+                    - D_r;                                      // [kg/(m2s)]
                 bVU[i] =
-                    + std::max(F_r, 0.0)
-                    + std::max(-F_l, 0.0)
+                    + std::max(phi[i + 1], 0.0)
+                    + std::max(-phi[i], 0.0)
                     + rho_v[i] * dz / dt
                     + D_l + D_r
-                    ;                                       // [kg/(m2s)]
+                    ;                                           // [kg/(m2s)]
                 dVU[i] =
                     - 0.5 * (p_v[i + 1] - p_v[i - 1])
                     + rho_v_old[i] * u_v_old[i] * dz / dt
-                    ;                                       // [kg/(ms2)]
+                    ;                                           // [kg/(ms2)]
             }
 
-            /// Diffusion coefficients for the first and last node to define BCs
-            const double D_first = (4.0 / 3.0) * mu / dz;
-            const double D_vast = (4.0 / 3.0) * mu / dz;
+            // Enforcing boundary conditions
+            // BCs on temperature
+            if (u_inlet_bc == 0) {                      // Dirichlet BC
 
-            /// Velocity BCs needed variables for the first node
-            const double u_r_face_first = 0.5 * (u_v[1]);
-            const double rho_r_first = (u_r_face_first >= 0) ? rho_v[0] : rho_v[1];
-            const double F_r_first = rho_r_first * u_r_face_first;
-
-            /// Velocity BCs needed variables for the last node
-            const double u_l_face_last = 0.5 * (u_v[N - 2]);
-            const double rho_l_last = (u_l_face_last >= 0) ? rho_v[N - 2] : rho_v[N - 1];
-            const double F_l_last = rho_l_last * u_l_face_last;
-
-			if (u_inlet_bc == 0) {                               // Dirichlet BC
-                aVU[0] = 0.0;
-                bVU[0] = rho_v[0] * dz / dt + 2 * D_first + F_r_first;
-                cVU[0] = 0.0;
-                dVU[0] = bVU[0] * u_inlet_value;
-			}
-			else if (u_inlet_bc == 1) {                          // Neumann BC
-                aVU[0] = 0.0;
-                bVU[0] = + (rho_v[0] * dz / dt + 2 * D_first + F_r_first);
-                cVU[0] = - (rho_v[0] * dz / dt + 2 * D_first + F_r_first);
-                dVU[0] = 0.0;
-			}
-
-			if (u_outlet_bc == 0) {                             // Dirichlet BC
-                aVU[N - 1] = 0.0;
-                bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
-                cVU[N - 1] = 0.0;
-                dVU[N - 1] = bVU[N - 1] * u_outlet_value;
+                aVT[0] = 0.0;
+                bVT[0] = 1.0;
+                cVT[0] = 1.0;
+                dVT[0] = 0.0;
             }
-			else if (u_outlet_bc == 1) {                        // Neumann BC
-                aVU[N - 1] = - (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
-                bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
-                cVU[N - 1] = 0.0;
-                dVU[N - 1] = 0.0;
+            else if (u_inlet_bc == 1) {                 // Neumann BC
+
+                aVT[0] = 0.0;
+                bVT[0] = 1.0;
+                cVT[0] = -1.0;
+                dVT[0] = 0.0;
+            }
+
+            if (u_outlet_bc == 0) {                     // Dirichlet BC
+
+                aVT[N - 1] = 1.0;
+                bVT[N - 1] = 1.0;
+                cVT[N - 1] = 0.0;
+                dVT[N - 1] = 0.0;
+            }
+            else if (u_outlet_bc == 1) {                // Neumann BC
+
+                aVT[N - 1] = -1.0;
+                bVT[N - 1] = 1.0;
+                cVT[N - 1] = 0.0;
+                dVT[N - 1] = 0.0;
             }
 
             u_v = tdma::solve(aVU, bVU, cVU, dVU);
@@ -483,25 +457,8 @@ int main() {
                 const double D_v = k / dz;      /// [W/(m2 K)]
                 const double D_r = k / dz;      /// [W/(m2 K)]
 
-                const double avgInvbVU_v = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
-                const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
-
-                const double rc_v = -avgInvbVU_v / 4.0 *
-                    (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
-                const double rc_r = -avgInvbVU_R / 4.0 *
-                    (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
-
-                const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_v;         // [m/s]
-                const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;         // [m/s]
-
-                const double rho_l = (u_l_face >= 0) ? rho_v[i - 1] : rho_v[i];     // [kg/m3]
-                const double rho_r = (u_r_face >= 0) ? rho_v[i] : rho_v[i + 1];     // [kg/m3]
-
-                const double Fl = rho_l * u_l_face;         // [kg/m2s]
-                const double Fr = rho_r * u_r_face;         // [kg/m2s]
-
-                const double C_l = (Fl * cp);               // [W/(m2K)]
-                const double C_r = (Fr * cp);               // [W/(m2K)]
+                const double C_l = (phi[i] * cp);               // [W/(m2K)]
+                const double C_r = (phi[i + 1] * cp);               // [W/(m2K)]
 
                 const double dpdz_up = u_v[i] * (p_v[i + 1] - p_v[i - 1]) / 2.0;
 
@@ -546,8 +503,8 @@ int main() {
 
                 aVT[0] = 0.0;
                 bVT[0] = 1.0;
-                cVT[0] = 0.0;
-                dVT[0] = T_inlet_value;
+                cVT[0] = 1.0;
+                dVT[0] = 2 * T_inlet_value;
             }
             else if (T_inlet_bc == 1) {                 // Neumann BC
 
@@ -559,10 +516,10 @@ int main() {
 
             if (T_outlet_bc == 0) {                     // Dirichlet BC
 
-                aVT[N - 1] = 0.0;
+                aVT[N - 1] = 1.0;
                 bVT[N - 1] = 1.0;
                 cVT[N - 1] = 0.0;
-                dVT[N - 1] = T_outlet_value;
+                dVT[N - 1] = 2 * T_outlet_value;
             }
             else if (T_outlet_bc == 1) {                // Neumann BC
 
@@ -589,32 +546,18 @@ int main() {
 
                 for (int i = 1; i < N - 1; ++i) {
 
-                    const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
-                    const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
-
-                    const double rc_l = -avgInvbVU_L / 4.0 *
-                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
-                    const double rc_r = -avgInvbVU_R / 4.0 *
-                        (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
-
                     const double psi_i = 1.0 / (Rv * T_v[i]);   // [kg/J]
+                   
+                    const double Crho_l = phi[i] >= 0 ? (1.0 / (Rv * T_v[i - 1])) : (1.0 / (Rv * T_v[i]));  // [s2/m2]
+                    const double Crho_r = phi[i + 1] >= 0 ? (1.0 / (Rv * T_v[i])) : (1.0 / (Rv * T_v[i + 1]));  // [s2/m2]
 
-                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
+                    const double rho_l_upwind = (phi[i] >= 0.0) ? rho_v[i - 1] : rho_v[i];      // [kg/m3]
+                    const double rho_r_upwind = (phi[i + 1] >= 0.0) ? rho_v[i] : rho_v[i + 1];  // [kg/m3]
 
-                    const double Crho_l = u_l_star >= 0 ? (1.0 / (Rv * T_v[i - 1])) : (1.0 / (Rv * T_v[i]));  // [s2/m2]
-                    const double Crho_r = u_r_star >= 0 ? (1.0 / (Rv * T_v[i])) : (1.0 / (Rv * T_v[i + 1]));  // [s2/m2]
+                    const double C_l = Crho_l * phi[i] / rho_l_upwind;       // [s/m]
+                    const double C_r = Crho_r * phi[i + 1] / rho_r_upwind;  // [s/m]
 
-                    const double C_l = Crho_l * u_l_star;       // [s/m]
-                    const double C_r = Crho_r * u_r_star;       // [s/m]
-
-                    const double rho_l_upwind = (u_l_star >= 0.0) ? rho_v[i - 1] : rho_v[i];    // [kg/m3]
-                    const double rho_r_upwind = (u_r_star >= 0.0) ? rho_v[i] : rho_v[i + 1];    // [kg/m3]
-
-                    const double phi_l = rho_l_upwind * u_l_star;   // [kg/(m2s)]
-                    const double phi_r = rho_r_upwind * u_r_star;   // [kg/(m2s)]
-
-                    const double mass_imbalance = (phi_r - phi_l) + (rho_v[i] - rho_v_old[i]) * dz / dt;  // [kg/(m2s)]
+                    const double mass_imbalance = (phi[i + 1] - phi[i]) + (rho_v[i] - rho_v_old[i]) * dz / dt;  // [kg/(m2s)]
 
                     const double mass_flux = S_m[i] * dz;           // [kg/(m2s)]
 
@@ -644,7 +587,7 @@ int main() {
                 if (p_inlet_bc == 0) {                      // Dirichlet BC
                     aVP[0] = 0.0;
                     bVP[0] = 1.0;
-                    cVP[0] = 0.0;
+                    cVP[0] = 1.0;
                     dVP[0] = 0.0;
                 }
                 else if (p_inlet_bc == 1) {                 // Neumann BC
@@ -655,7 +598,7 @@ int main() {
                 }
 
                 if (p_outlet_bc == 0) {                     // Dirichlet BC
-                    aVP[N - 1] = 0.0;
+                    aVP[N - 1] = 1.0;
                     bVP[N - 1] = 1.0;
                     cVP[N - 1] = 0.0;
                     dVP[N - 1] = 0.0;
@@ -719,6 +662,59 @@ int main() {
                     u_error_v = std::max(u_error_v, std::fabs(u_v[i] - u_prev[i]));
                 }
 
+                // Flux calculator
+                for (int i = 1; i < N; ++i) {
+
+                    const double avgInvbVU = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
+
+                    double rc = 0.0;
+
+                    // Rhie–Chow corrections for face velocities
+                    if ((i != 1) && (i != N - 1)) {
+
+                        rc = -avgInvbVU / 4.0 *
+                            (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
+
+                    }
+
+                    // Face velocities (avg + RC)
+                    const double u_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc;    // [m/s]
+
+                    // Upwind densities at faces
+                    const double rho = (u_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
+
+                    phi[i] = rho * u_face;
+                }
+
+                // Enforcing boundary conditions
+                // BCs on temperature
+                if (u_inlet_bc == 0) {                      // Dirichlet BC
+
+                    phi[0] = u_inlet_value * rho_v[0];
+                    phi[1] = u_inlet_value * rho_v[0];
+                }
+                else if (u_inlet_bc == 1) {                 // Neumann BC
+
+                    phi[0] = u_v[1] * rho_v[0];
+                    phi[1] = u_v[1] * rho_v[0];
+                }
+
+                if (u_outlet_bc == 0) {                     // Dirichlet BC
+
+                    phi[N - 1] = u_outlet_value * rho_v[N - 1];
+                    phi[N] = u_outlet_value * rho_v[N - 1];
+                }
+                else if (u_outlet_bc == 1) {                // Neumann BC
+
+                    phi[N - 1] = u_v[N - 2] * rho_v[N - 1];
+                    phi[N] = u_v[N - 2] * rho_v[N - 1];
+                }
+
+                // Enforcing zero flux on boundaries
+
+                phi[N - 1] = 0.0;
+                phi[N] = 0.0;
+
                 // -------------------------------------------------------
                 // DENSITY CORRECTOR
                 // -------------------------------------------------------
@@ -730,6 +726,10 @@ int main() {
                     rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
+
+                // Enforcing boundary conditions on ghost cells
+                rho_v[0] = rho_v[1];
+                rho_v[N - 1] = rho_v[N - 2];
 
                 // -------------------------------------------------------
                 // CONTINUITY RESIDUAL CALCULATION
