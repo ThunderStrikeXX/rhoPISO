@@ -370,11 +370,11 @@ int main() {
                 // S_h[i] = in.S_h_cell;
             }
             else if (z >= in.z_cond_start && z <= in.z_cond_end) {
-                // S_m[i] = -in.S_m_cell;
+                S_m[i] = -in.S_m_cell;
                 // S_h[i] = -in.S_h_cell;
                 // H_conv[i] = 10000;
 
-                S_m[i] = beta[i] * (P_eq - p_v[i]);
+                // S_m[i] = beta[i] * (P_eq - p_v[i]);
             }
         }
 
@@ -662,7 +662,9 @@ int main() {
                     u_error_v = std::max(u_error_v, std::fabs(u_v[i] - u_prev[i]));
                 }
 
-                // Flux calculator
+                // -------------------------------------------------------
+                // FLUX CORRECTOR
+                // -------------------------------------------------------
                 for (int i = 1; i < N; ++i) {
 
                     const double avgInvbVU = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
@@ -687,7 +689,7 @@ int main() {
                 }
 
                 // Enforcing boundary conditions
-                // BCs on temperature
+                // BCs on fluxes
                 if (u_inlet_bc == 0) {                      // Dirichlet BC
 
                     phi[0] = u_inlet_value * rho_v[0];
@@ -710,11 +712,6 @@ int main() {
                     phi[N] = u_v[N - 2] * rho_v[N - 1];
                 }
 
-                // Enforcing zero flux on boundaries
-
-                phi[N - 1] = 0.0;
-                phi[N] = 0.0;
-
                 // -------------------------------------------------------
                 // DENSITY CORRECTOR
                 // -------------------------------------------------------
@@ -727,7 +724,7 @@ int main() {
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
                 }
 
-                // Enforcing boundary conditions on ghost cells
+                // Enforcing density BCs on ghost cells
                 rho_v[0] = rho_v[1];
                 rho_v[N - 1] = rho_v[N - 2];
 
