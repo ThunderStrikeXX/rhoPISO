@@ -364,15 +364,15 @@ int main() {
             const double z = (i + 0.5) * dz;
 
             if (z >= in.z_evap_start && z <= in.z_evap_end) {
-                S_m[i] = in.S_m_cell;
-                // S_h[i] = in.S_h_cell;
+                // S_m[i] = in.S_m_cell;
+                S_h[i] = in.S_h_cell;
             }
             else if (z >= in.z_cond_start && z <= in.z_cond_end) {
                 // S_m[i] = -in.S_m_cell;
                 // S_h[i] = -in.S_h_cell;
-                // H_conv[i] = 10000;
+                H_conv[i] = 10000;
 
-                S_m[i] = beta[i] * (P_eq - p_v[i]);
+                // S_m[i] = beta[i] * (P_eq - p_v[i]);
             }
         }
 
@@ -533,9 +533,9 @@ int main() {
                     // + dp_dt
                     // + dpdz_up
                     // + viscous_dissipation
-                    // + S_h[i] * dz
-                    // + H_conv[i] * 300 
-                    + S_m[i] * cp * T_v[i] * dz
+                    + S_h[i] * dz
+                    + H_conv[i] * 300 
+                    // + S_m[i] * cp * T_v[i] * dz
                     ;                                   /// [W/m2]
 
                 heat_sources[i] = S_h[i] * dz - H_conv[i] * (T_v[i] - 300);
@@ -808,13 +808,13 @@ int main() {
             total_heat += cp * rho_v[0] * u_v[0] * T_v[0];
             total_heat += - cp * rho_v[N - 1] * u_v[N - 1] * T_v[N - 1];
 
-            // std::cout << total_heat << std::endl;
+            std::cout << total_heat << std::endl;
 
             double total_mass = 0.0;
 
-            for (int i = 0; i < N; ++i) total_mass += S_m[i];
+            // for (int i = 0; i < N; ++i) total_mass += S_m[i];
 
-            std::cout << total_mass << std::endl;
+            // std::cout << total_mass << std::endl;
         }
     }
 
