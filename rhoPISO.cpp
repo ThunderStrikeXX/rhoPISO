@@ -537,8 +537,6 @@ int main() {
                     + H_conv[i] * 300 
                     // + S_m[i] * cp * T_v[i] * dz
                     ;                                   /// [W/m2]
-
-                heat_sources[i] = S_h[i] * dz - H_conv[i] * (T_v[i] - 300);
             }
 
             // BCs on temperature
@@ -767,6 +765,8 @@ int main() {
             outer_v++;
         }
 
+        for (int i = 0; i < N; ++i) rho_v[i] = p_v[i] / (Rv * T_v[i]);
+
         // Saving old variables
         u_v_old = u_v;
         p_v_old = p_v;
@@ -803,10 +803,18 @@ int main() {
 
             double total_heat = 0.0;
 
-            for (int i = 0; i < N; ++i) total_heat += heat_sources[i];
+            for (int i = 1; i < N - 1; ++i) {
+                
+                heat_sources[i] = S_h[i] * dz - H_conv[i] * (T_v[i] - 300);
 
-            total_heat += cp * rho_v[0] * u_v[0] * T_v[0];
-            total_heat += - cp * rho_v[N - 1] * u_v[N - 1] * T_v[N - 1];
+                total_heat += heat_sources[i];
+            }
+
+            double inlet_heat = cp * rho_v[0] * u_v[0] * T_v[0];
+            double outlet_heat = -cp * rho_v[N - 1] * u_v[N - 1] * T_v[N - 1];
+
+            total_heat += inlet_heat;
+            total_heat += outlet_heat;
 
             std::cout << total_heat << std::endl;
 
