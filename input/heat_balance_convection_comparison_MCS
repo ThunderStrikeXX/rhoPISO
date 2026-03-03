@@ -1,5 +1,5 @@
 # ---------------- MESH ----------------
-N = 50
+N = 100
 L = 1.0
 
 # ---------------- TIME ----------------
@@ -7,10 +7,10 @@ dt_user = 1e-3
 simulation_time = 100.0
 
 # ---------------- PISO ----------------
-piso_outer_iter = 1
-piso_inner_iter = 2
-piso_outer_tol = 1e-8
-piso_inner_tol = 1e-8
+piso_outer_iter = 5
+piso_inner_iter = 10
+piso_outer_tol = 1e-6
+piso_inner_tol = 1e-6
 rhie_chow = 1
 
 # ---------------- FLUID ---------------
@@ -21,7 +21,7 @@ cp = 1000
 
 # ---------------- SOURCES -------------
 S_m_cell = 0.0
-S_h_cell = 1e4
+S_h_cell = 1e3
 
 z_evap_start = 0.0
 z_evap_end   = 0.3
