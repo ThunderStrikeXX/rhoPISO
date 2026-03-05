@@ -572,7 +572,7 @@ int main() {
                 if (p_inlet_bc == 0) {                              // Dirichlet BC
 
 					p_v[0] = p_inlet_value;
-                    p_storage_v[N + 1] = p_inlet_value;
+                    p_storage_v[0] = p_inlet_value;
                 }
                 else if (p_inlet_bc == 1) {                         // Neumann BC
 
@@ -734,9 +734,6 @@ int main() {
             T_v_prev = T_v;
             T_v = tdma::solve(aVT, bVT, cVT, dVT);
 
-            for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
-
-
             // -------------------------------------------------------
             // TEMPERATURE RESIDUAL CALCULATION
             // -------------------------------------------------------
@@ -746,6 +743,8 @@ int main() {
             for (int i = 1; i < N - 1; ++i) {
                 temperature_residual = std::max(temperature_residual, std::fabs(T_v[i] - T_v_prev[i]));
             }
+
+            for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
             outer_v++;
         }
