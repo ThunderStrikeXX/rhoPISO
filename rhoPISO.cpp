@@ -266,6 +266,8 @@ int main() {
 	std::vector<double> p_storage_v(N + 2, 0.0);                        // Padded pressure storage for Rhie–Chow [Pa]
 	double* p_padded_v = &p_storage_v[1];                               // Pointer to the real nodes of the padded pressure storage [Pa]
 
+    std::vector<double> phi_v(N + 1, 0.0);                              // Vapor face mass flux [kg/m2s]
+
     // p_storp_storage_vage_l initialization
     for (int i = 0; i < N; ++i)
         p_storage_v[i + 1] = p_v[i];
@@ -359,6 +361,13 @@ int main() {
 
     for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
+    // Flux initialization
+    for (int i = 1; i < N; ++i) {
+        const double u_face = 0.5 * (u_v[i - 1] + u_v[i]);
+        const double rho_face = (u_face >= 0.0) ? rho_v[i - 1] : rho_v[i];
+        phi_v[i] = rho_face * u_face;
+    }
+
     double start = omp_get_wtime();
 
 	// Time-stepping loop
@@ -381,35 +390,15 @@ int main() {
                 const double D_l = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
                 const double D_r = (4.0 / 3.0) * mu / dz;       // [kg/(m2s)]
 
-                const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
-                const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]); // [m2s/kg]
-
-                // Rhie–Chow corrections for face velocities
-                const double rc_l = -avgInvbVU_L / 4.0 *
-                    (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
-                const double rc_r = -avgInvbVU_R / 4.0 *
-                    (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]); // [m/s]
-
-                // face velocities (avg + RC)
-                const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
-
-                // upwind densities at faces
-                const double rho_l = (u_l_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
-                const double rho_r = (u_r_face >= 0.0) ? rho_v[i] : rho_v[i + 1];       // [kg/m3]
-
-                const double F_l = rho_l * u_l_face; // [kg/(m2s)]
-                const double F_r = rho_r * u_r_face; // [kg/(m2s)]
-
                 aVU[i] =
-                    - std::max(F_l, 0.0)
+                    - std::max(phi_v[i], 0.0)
                     - D_l;                                  // [kg/(m2s)]
                 cVU[i] =
-                    - std::max(-F_r, 0.0)
+                    - std::max(-phi_v[i + 1], 0.0)
                     - D_r;                                  // [kg/(m2s)]
                 bVU[i] =
-                    + std::max(F_r, 0.0)
-                    + std::max(-F_l, 0.0)
+                    + std::max(phi_v[i + 1], 0.0)
+                    + std::max(-phi_v[i], 0.0)
                     + rho_v[i] * dz / dt
                     + D_l + D_r;                            // [kg/(m2s)]
                 dVU[i] =
@@ -419,7 +408,7 @@ int main() {
 
             /// Diffusion coefficients for the first and last node to define BCs
             const double D_first = (4.0 / 3.0) * mu / dz;
-            const double D_vast = (4.0 / 3.0) * mu / dz;
+            const double D_last = (4.0 / 3.0) * mu / dz;
 
             /// Velocity BCs needed variables for the first node
             const double u_r_face_first = 0.5 * (u_v[1]);
@@ -431,33 +420,54 @@ int main() {
             const double rho_l_last = (u_l_face_last >= 0) ? rho_v[N - 2] : rho_v[N - 1];
             const double F_l_last = rho_l_last * u_l_face_last;
 
-			if (u_inlet_bc == 0) {                               // Dirichlet BC
+            if (u_inlet_bc == 0) {                               // Dirichlet BC
                 aVU[0] = 0.0;
                 bVU[0] = rho_v[0] * dz / dt + 2 * D_first + F_r_first;
                 cVU[0] = 0.0;
                 dVU[0] = bVU[0] * u_inlet_value;
-			}
-			else if (u_inlet_bc == 1) {                          // Neumann BC
+            }
+            else if (u_inlet_bc == 1) {                          // Neumann BC
                 aVU[0] = 0.0;
-                bVU[0] = + (rho_v[0] * dz / dt + 2 * D_first + F_r_first);
-                cVU[0] = - (rho_v[0] * dz / dt + 2 * D_first + F_r_first);
+                bVU[0] = +(rho_v[0] * dz / dt + 2 * D_first + F_r_first);
+                cVU[0] = -(rho_v[0] * dz / dt + 2 * D_first + F_r_first);
                 dVU[0] = 0.0;
-			}
+            }
 
-			if (u_outlet_bc == 0) {                              // Dirichlet BC
+            if (u_outlet_bc == 0) {                             // Dirichlet BC
                 aVU[N - 1] = 0.0;
-                bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_last - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = bVU[N - 1] * u_outlet_value;
             }
-			else if (u_outlet_bc == 1) {                          // Neumann BC
-                aVU[N - 1] = - (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
-                bVU[N - 1] = + (rho_v[N - 1] * dz / dt + 2 * D_vast - F_l_last);
+            else if (u_outlet_bc == 1) {                        // Neumann BC
+                aVU[N - 1] = -(rho_v[N - 1] * dz / dt + 2 * D_last - F_l_last);
+                bVU[N - 1] = +(rho_v[N - 1] * dz / dt + 2 * D_last - F_l_last);
                 cVU[N - 1] = 0.0;
                 dVU[N - 1] = 0.0;
             }
 
             u_v = tdma::solve(aVU, bVU, cVU, dVU);
+
+            // =========== FLUX CORRECTOR
+            #pragma region flux_corrector
+
+            for (int i = 1; i < N; ++i) {
+
+                const double avgInvbVU = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
+
+                double rc = -avgInvbVU / 4.0 *
+                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
+
+                // Face velocities (avg + RC)
+                const double u_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc;    // [m/s]
+
+                // Upwind densities at faces
+                const double rho = (u_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
+
+                phi_v[i] = rho * u_face;
+            }
+
+            #pragma endregion
 
             rho_error_v = 1.0;
             p_error_v = 1.0;
@@ -473,32 +483,18 @@ int main() {
 
                 for (int i = 1; i < N - 1; ++i) {
 
-                    const double avgInvbVU_L = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
-                    const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
-
-                    const double rc_l = -avgInvbVU_L / 4.0 *
-                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
-                    const double rc_r = -avgInvbVU_R / 4.0 *
-                        (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
-
                     const double psi_i = 1.0 / (Rv * T_v[i]); // [kg/J]
 
-                    const double u_l_star = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_l;    // [m/s]
-                    const double u_r_star = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;    // [m/s]
+                    const double Crho_l = phi_v[i] >= 0 ? (1.0 / (Rv * T_v[i - 1])) : (1.0 / (Rv * T_v[i]));  // [s2/m2]
+                    const double Crho_r = phi_v[i + 1] >= 0 ? (1.0 / (Rv * T_v[i])) : (1.0 / (Rv * T_v[i + 1]));  // [s2/m2]
 
-                    const double Crho_l = u_l_star >= 0 ? (1.0 / (Rv * T_v[i - 1])) : (1.0 / (Rv * T_v[i]));  // [s2/m2]
-                    const double Crho_r = u_r_star >= 0 ? (1.0 / (Rv * T_v[i])) : (1.0 / (Rv * T_v[i + 1]));  // [s2/m2]
+                    const double rho_l_upwind = (phi_v[i] >= 0.0) ? rho_v[i - 1] : rho_v[i];    // [kg/m3]
+                    const double rho_r_upwind = (phi_v[i + 1] >= 0.0) ? rho_v[i] : rho_v[i + 1];    // [kg/m3]
 
-                    const double C_l = Crho_l * u_l_star;       // [s/m]
-                    const double C_r = Crho_r * u_r_star;       // [s/m]
+                    const double C_l = Crho_l * phi_v[i] / rho_l_upwind;       // [s/m]
+                    const double C_r = Crho_r * phi_v[i + 1] / rho_r_upwind;       // [s/m]
 
-                    const double rho_l_upwind = (u_l_star >= 0.0) ? rho_v[i - 1] : rho_v[i];    // [kg/m3]
-                    const double rho_r_upwind = (u_r_star >= 0.0) ? rho_v[i] : rho_v[i + 1];    // [kg/m3]
-
-                    const double phi_l = rho_l_upwind * u_l_star;   // [kg/(m2s)]
-                    const double phi_r = rho_r_upwind * u_r_star;   // [kg/(m2s)]
-
-                    const double mass_imbalance = (phi_r - phi_l) + (rho_v[i] - rho_v_old[i]) * dz / dt;  // [kg/(m2s)]
+                    const double mass_imbalance = (phi_v[i + 1] - phi_v[i]) + (rho_v[i] - rho_v_old[i]) * dz / dt;  // [kg/(m2s)]
 
                     const double mass_flux = S_m[i] * dz;         // [kg/(m2s)]
 
@@ -613,6 +609,23 @@ int main() {
                     rho_prev[i] = rho_v[i];
                     rho_v[i] += p_prime_v[i] / (Rv * T_v[i]);
                     rho_error_v = std::max(rho_error_v, std::fabs(rho_v[i] - rho_prev[i]));
+                }
+
+                // =========== FLUX CORRECTOR
+                for (int i = 1; i < N; ++i) {
+
+                    const double avgInvbVU = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]); // [m2s/kg]
+
+                    double rc = -avgInvbVU / 4.0 *
+                        (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]); // [m/s]
+
+                    // Face velocities (avg + RC)
+                    const double u_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc;    // [m/s]
+
+                    // Upwind densities at faces
+                    const double rho = (u_face >= 0.0) ? rho_v[i - 1] : rho_v[i];       // [kg/m3]
+
+                    phi_v[i] = rho * u_face;
                 }
 
                 // -------------------------------------------------------
