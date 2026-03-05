@@ -351,6 +351,9 @@ int main() {
     // TDMA solver
     tdma::Solver tdma_solver(N);
 
+    std::vector<double> h_v(N, in.T_initial * 1000);                    // Vapor enthalpy [J/kg]
+    std::vector<double> h_v_old = h_v;
+
     // PISO Vapor parameters
     const int tot_simple_iter_v = 50;                   // Outer iterations per time-step [-]
     const int tot_piso_iter_v = 10;                     // Inner iterations per outer iteration [-]
@@ -676,11 +679,8 @@ int main() {
             // Energy equation for T (implicit), upwind convection, central diffusion
             for (int i = 1; i < N - 1; i++) {
 
-                const double D_v = k / dz;      /// [W/(m2 K)]
-                const double D_r = k / dz;      /// [W/(m2 K)]
-
-                const double C_l = (phi_v[i] * cp);               // [W/(m2K)]
-                const double C_r = (phi_v[i + 1] * cp);               // [W/(m2K)]
+                const double D_v = k / (cp * dz);      /// [W/(m2 K)]
+                const double D_r = k / (cp * dz);      /// [W/(m2 K)]
 
                 const double dpdz_up = u_v[i] * (p_v[i + 1] - p_v[i - 1]) / 2.0;
 
@@ -692,22 +692,22 @@ int main() {
 
                 aVT[i] =
                     - D_v
-                    - std::max(C_l, 0.0)
+                    - std::max(phi_v[i], 0.0)
                     ;               /// [W/(m2K)]
 
                 cVT[i] =
                     - D_r
-                    - std::max(-C_r, 0.0)
+                    - std::max(-phi_v[i + 1], 0.0)
                     ;              /// [W/(m2K)]
 
                 bVT[i] =
-                    + std::max(C_r, 0.0)
-                    + std::max(-C_l, 0.0)
+                    + std::max(phi_v[i + 1], 0.0)
+                    + std::max(-phi_v[i], 0.0)
                     + D_v + D_r
-                    + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
+                    + rho_v[i] * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
-                    + rho_v_old[i] * cp * dz / dt * T_v_old[i];
+                    + rho_v_old[i] * dz / dt * h_v_old[i]
                     + dp_dt
                     + dpdz_up
                     + viscous_dissipation
@@ -720,7 +720,7 @@ int main() {
                 aVT[0] = 0.0;
                 bVT[0] = 1.0;
                 cVT[0] = 0.0;
-                dVT[0] = T_inlet_value;
+                dVT[0] = T_inlet_value * 1000;
             }
             else if (T_inlet_bc == 1) {                 // Neumann BC
 
@@ -735,7 +735,7 @@ int main() {
                 aVT[N - 1] = 0.0;
                 bVT[N - 1] = 1.0;
                 cVT[N - 1] = 0.0;
-                dVT[N - 1] = T_outlet_value;
+                dVT[N - 1] = T_outlet_value * 1000;
             }
             else if (T_outlet_bc == 1) {                // Neumann BC
 
@@ -746,7 +746,14 @@ int main() {
             }
 
             T_v_prev = T_v;
-            tdma_solver.solve(aVT, bVT, cVT, dVT, T_v);
+            tdma_solver.solve(aVT, bVT, cVT, dVT, h_v);
+
+            // Recovering temperture from enthalpy
+            for (std::size_t i = 0; i < N; i++) {
+
+                T_v[i] = h_v[i] / 1000;
+
+            }
 
             // =========== TEMPERATURE RESIDUAL CALCULATOR
             #pragma region temperature_residual_calculator
@@ -775,6 +782,7 @@ int main() {
         p_v_old = p_v;
         rho_v_old = rho_v;
         T_v_old = T_v;
+        h_v_old = h_v;
 
         // ===============================================================
         // OUTPUT
@@ -812,6 +820,8 @@ int main() {
 
     std::clock_t cpu_end = std::clock();
     std::cout << "CPU time: " << (double)(cpu_end - cpu_start) / CLOCKS_PER_SEC << " s\n";
+
+    system("pause");
 
     return 0;
 }
