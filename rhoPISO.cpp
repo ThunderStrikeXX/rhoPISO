@@ -347,6 +347,9 @@ int main() {
     std::ofstream T_out(outputDir / in.temperature_file);           // Temperature output file
 	std::ofstream rho_out(outputDir / in.density_file);             // Density output file
 
+    // TDMA solver
+    tdma::Solver tdma_solver(N);
+
     // Convergence metrics
     double continuity_residual = 1.0;
     double momentum_residual = 1.0;
@@ -446,7 +449,7 @@ int main() {
                 dVU[N - 1] = 0.0;
             }
 
-            u_v = tdma::solve(aVU, bVU, cVU, dVU);
+            tdma_solver.solve(aVU, bVU, cVU, dVU, u_v);
 
             // =========== FLUX CORRECTOR
             #pragma region flux_corrector
@@ -547,7 +550,7 @@ int main() {
                     dVP[N - 1] = 0.0;
                 }
 
-                p_prime_v = tdma::solve(aVP, bVP, cVP, dVP);
+                tdma_solver.solve(aVP, bVP, cVP, dVP, p_prime_v);
 
                 // -------------------------------------------------------
                 // PRESSURE CORRECTOR
@@ -661,25 +664,8 @@ int main() {
                 const double D_v = k / dz;      /// [W/(m2 K)]
                 const double D_r = k / dz;      /// [W/(m2 K)]
 
-                const double avgInvbVU_v = 0.5 * (1.0 / bVU[i - 1] + 1.0 / bVU[i]);     // [m2s/kg]
-                const double avgInvbVU_R = 0.5 * (1.0 / bVU[i + 1] + 1.0 / bVU[i]);     // [m2s/kg]
-
-                const double rc_v = -avgInvbVU_v / 4.0 *
-                    (p_padded_v[i - 2] - 3.0 * p_padded_v[i - 1] + 3.0 * p_padded_v[i] - p_padded_v[i + 1]);    // [m/s]
-                const double rc_r = -avgInvbVU_R / 4.0 *
-                    (p_padded_v[i - 1] - 3.0 * p_padded_v[i] + 3.0 * p_padded_v[i + 1] - p_padded_v[i + 2]);    // [m/s]
-
-                const double u_l_face = 0.5 * (u_v[i - 1] + u_v[i]) + rhie_chow_on_off_v * rc_v;         // [m/s]
-                const double u_r_face = 0.5 * (u_v[i] + u_v[i + 1]) + rhie_chow_on_off_v * rc_r;         // [m/s]
-
-                const double rho_l = (u_l_face >= 0) ? rho_v[i - 1] : rho_v[i];     // [kg/m3]
-                const double rho_r = (u_r_face >= 0) ? rho_v[i] : rho_v[i + 1];     // [kg/m3]
-
-                const double Fl = rho_l * u_l_face;         // [kg/m2s]
-                const double Fr = rho_r * u_r_face;         // [kg/m2s]
-
-                const double C_l = (Fl * cp);               // [W/(m2K)]
-                const double C_r = (Fr * cp);               // [W/(m2K)]
+                const double C_l = (phi_v[i] * cp);               // [W/(m2K)]
+                const double C_r = (phi_v[i + 1] * cp);               // [W/(m2K)]
 
                 const double dpdz_up = u_v[i] * (p_v[i + 1] - p_v[i - 1]) / 2.0;
 
@@ -745,7 +731,7 @@ int main() {
             }
 
             T_v_prev = T_v;
-            T_v = tdma::solve(aVT, bVT, cVT, dVT);
+            tdma_solver.solve(aVT, bVT, cVT, dVT, T_v);
 
             // -------------------------------------------------------
             // TEMPERATURE RESIDUAL CALCULATION
