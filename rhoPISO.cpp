@@ -7,7 +7,8 @@
 #include <sstream>
 #include <unordered_map>
 #include <filesystem>
-#include <omp.h>
+#include <chrono>
+#include <ctime>
 
 #include "tdma.h"
 
@@ -350,17 +351,26 @@ int main() {
     // TDMA solver
     tdma::Solver tdma_solver(N);
 
-    // Convergence metrics
-    double continuity_residual = 1.0;
-    double momentum_residual = 1.0;
-    double temperature_residual = 1.0;
+    // PISO Vapor parameters
+    const int tot_simple_iter_v = 50;                   // Outer iterations per time-step [-]
+    const int tot_piso_iter_v = 10;                     // Inner iterations per outer iteration [-]
+    const double momentum_tol_v = 1e-6;              // Tolerance for the outer iterations (velocity) [-]
+    const double continuity_tol_v = 1e-6;            // Tolerance for the inner iterations (pressure) [-]
+    const double temperature_tol_v = 1e-2;           // Tolerance for the energy equation [-]
 
-    double u_error_v = 1.0;
-    int outer_v = 0;
+    // Residuals for mass, monentum and enthalpy equations
+    double momentum_res_v = 1.0;
+    double temperature_res_v = 1.0;
+    double continuity_res_v = 1.0;
 
-    double p_error_v = 1.0;
-    double rho_error_v = 1.0;
-    int inner_v = 0;
+    // Index for vapor outer and inner iterations
+    int simple_iter_v = 0;
+    int piso_iter_v = 0;
+
+    // Errors for vapor pressure, velocity and density
+    double p_error_v = 0.0;
+    double u_error_v = 0.0;
+    double rho_error_v = 0.0;
 
     for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
@@ -371,18 +381,20 @@ int main() {
         phi_v[i] = rho_face * u_face;
     }
 
-    double start = omp_get_wtime();
+    auto wall_start = std::chrono::steady_clock::now();
+    std::clock_t cpu_start = std::clock();
 
 	// Time-stepping loop
     for (int n = 0; n <= time_steps; ++n) {
 
-        u_error_v = 1.0;
-        outer_v = 0;
+        // Momentum and energy residual initialization to access outer loop
+        momentum_res_v = 1.0;
+        temperature_res_v = 1.0;
 
-        momentum_residual = 1.0;
-        temperature_residual = 1.0;
+        // Outer iterations reset
+        simple_iter_v = 0;
 
-        while (outer_v < tot_outer_v && (momentum_residual > outer_tol_v || temperature_residual > outer_tol_v * 100)) {
+        while ((simple_iter_v < tot_simple_iter_v) && (momentum_res_v > momentum_tol_v || temperature_res_v > temperature_tol_v)) {
 
             // ===========================================================
             // MOMENTUM PREDICTOR
@@ -472,13 +484,13 @@ int main() {
 
             #pragma endregion
 
-            rho_error_v = 1.0;
-            p_error_v = 1.0;
-            inner_v = 0;
+            // Continuity residual initialization to access inner loop
+            continuity_res_v = 1.0;
 
-            continuity_residual = 1.0;
+            // Inner iterations reset
+            piso_iter_v = 0;
 
-            while (inner_v < tot_inner_v && continuity_residual > inner_tol_v) {
+            while ((piso_iter_v < tot_piso_iter_v) && (continuity_res_v > continuity_tol_v)) {
 
                 // -------------------------------------------------------
                 // CONTINUITY SATISFACTOR: assemble pressure correction
@@ -631,28 +643,31 @@ int main() {
                     phi_v[i] = rho * u_face;
                 }
 
-                // -------------------------------------------------------
-                // CONTINUITY RESIDUAL CALCULATION
-                // -------------------------------------------------------
+                // =========== CONTINUITY RESIDUAL CALCULATOR
+                #pragma region continuity_residual_calculator
 
-                continuity_residual = 0.0;
+                continuity_res_v = 0.0;
 
-                for (int i = 1; i < N - 1; ++i) {
-                    continuity_residual = std::max(continuity_residual, std::fabs(dVP[i]));
+                for (std::size_t i = 1; i < N - 1; ++i) {
+
+                    continuity_res_v = std::max(continuity_res_v, std::abs(dVP[i]));
                 }
 
-                inner_v++;
+                    #pragma endregion
+
+                piso_iter_v++;
             }
 
-            // -------------------------------------------------------
-            // MOMENTUM RESIDUAL CALCULATION
-            // -------------------------------------------------------
+            // =========== MOMENTUM RESIDUAL CALCULATOR
+            #pragma region momentum_residual_calculator
 
-            momentum_residual = 0.0;
+            momentum_res_v = 0.0;
 
-            for (int i = 1; i < N - 1; ++i) {
-                momentum_residual = std::max(momentum_residual, std::fabs(aVU[i] * u_v[i - 1] + bVU[i] * u_v[i] + cVU[i] * u_v[i + 1] - dVU[i]));
+            for (std::size_t i = 1; i < N - 1; ++i) {
+                momentum_res_v = std::max(momentum_res_v, std::abs(aVU[i] * u_v[i - 1] + bVU[i] * u_v[i] + cVU[i] * u_v[i + 1] - dVU[i]));
             }
+
+            #pragma endregion
 
             // ===============================================================
             // TEMPERATURE SOLVER
@@ -692,7 +707,7 @@ int main() {
                     + rho_v[i] * cp * dz / dt;          /// [W/(m2 K)]
 
                 dVT[i] =
-                    + rho_v_old[i] * cp * dz / dt * T_v_old[i]
+                    + rho_v_old[i] * cp * dz / dt * T_v_old[i];
                     + dp_dt
                     + dpdz_up
                     + viscous_dissipation
@@ -733,19 +748,24 @@ int main() {
             T_v_prev = T_v;
             tdma_solver.solve(aVT, bVT, cVT, dVT, T_v);
 
-            // -------------------------------------------------------
-            // TEMPERATURE RESIDUAL CALCULATION
-            // -------------------------------------------------------
+            // =========== TEMPERATURE RESIDUAL CALCULATOR
+            #pragma region temperature_residual_calculator
 
-            temperature_residual = 0.0;
+            temperature_res_v = 0.0;
 
-            for (int i = 1; i < N - 1; ++i) {
-                temperature_residual = std::max(temperature_residual, std::fabs(T_v[i] - T_v_prev[i]));
+            for (std::size_t i = 0; i < N; ++i) {
+
+                temperature_res_v = std::max(
+                    temperature_res_v,
+                    std::abs(T_v[i] - T_v_prev[i]) / T_v_prev[i]
+                );
             }
+
+            #pragma endregion
 
             for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
 
-            outer_v++;
+            simple_iter_v++;
         }
 
         for (int i = 0; i < N; i++) { rho_v[i] = std::max(1e-6, p_v[i] / (Rv * T_v[i])); }
@@ -786,8 +806,12 @@ int main() {
     T_out.close();
 	rho_out.close();
 
-    double end = omp_get_wtime();
-    printf("Execution time: %.6f s\n", end - start);
+    auto wall_end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> wall_elapsed = wall_end - wall_start;
+    std::cout << "Wall clock time: " << wall_elapsed.count() << " s\n";
+
+    std::clock_t cpu_end = std::clock();
+    std::cout << "CPU time: " << (double)(cpu_end - cpu_start) / CLOCKS_PER_SEC << " s\n";
 
     return 0;
 }
